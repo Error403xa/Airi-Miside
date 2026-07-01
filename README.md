@@ -1,8 +1,8 @@
 # Airi-Miside
 
-你是否梦想过拥有一个赛博生命（赛博 waifu、数字桌宠），或者能与你玩耍和交谈的数字伴侣？
+你是否梦想过拥有一个米塔，能与你玩耍和交谈的伴侣？
 
-Airi-Miside 不仅仅是聊天。它把 AI 角色从“对话框”升级成了一个有形象、有声音、会动、会陪你玩的“数字女友”与“赛博桌宠”。
+Airi-Miside 不仅仅是聊天。它把 AI 角色从“对话框”升级成了一个有形象、有声音、会动、会陪你玩的“女友”与“赛博桌宠”。
 
 你可以把它当作《MiSide》风格的和平模式替代品：让米塔在桌面端或网页端陪你聊天、看视频、看直播、读弹幕、玩小游戏，甚至在你需要的时候，通过手机控制能力继续扩展你的互动体验。
 
@@ -23,7 +23,7 @@ Airi-Miside 的核心目标很简单：
 
 以下是正常使用时的展示效果：
 
-![Web and desktop usage](./docs/content/public/readme-assets/2026-07-01%20191225.png)
+![Web and desktop usage](./user/content/public/readme-assets/2026-07-01%20191225.png)
 
 ![Live2D scene](./user/Image_1775899738200_69.jpg)
 
