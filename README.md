@@ -23,7 +23,7 @@ Airi-Miside 的核心目标很简单：
 
 以下是正常使用时的展示效果：
 
-![Web and desktop usage](./user/content/public/readme-assets/2026-07-01%20191225.png)
+![Web and desktop usage](./user/2026-07-01%20191225.png)
 
 ![Live2D scene](./user/Image_1775899738200_69.jpg)
 
