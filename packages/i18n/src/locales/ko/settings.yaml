@@ -311,7 +311,7 @@ pages:
       description: Factorio 플레이 중!
       title: Factorio
       enable: Factorio 통합 사용
-      enable-description: AIRI가 Factorio를 접근하기 위해 허용
+      enable-description: 米塔가 Factorio를 접근하기 위해 허용
       server-address: 서버 주소
       server-address-description: Factorio 서버의 IP 주소 및 호스트 이름
       server-address-placeholder: '서버 주소 입력 (예시: localhost 및 192.168.1.100)'
@@ -325,7 +325,7 @@ pages:
       description: Minecraft 플레이 중!
       title: Minecraft
       enable: Minecraft 통합 사용
-      enable-description: AIRI가 Minecraft를 접근하기 위해 허용
+      enable-description: 米塔가 Minecraft를 접근하기 위해 허용
       server-address: 서버 주소
       server-address-description: Minecraft 서버의 IP 주소 및 호스트 이름
       server-address-placeholder: '서버 주소 입력 (예시: localhost 및 play.example.com)'
@@ -352,11 +352,70 @@ pages:
       description: Discord를 통한 채팅 및 음성 채팅
       title: Discord
       enable: Discord 통합 사용
-      enable-description: AIRI가 Discord를 접근하기 위해 허용
+      enable-description: 米塔가 Discord를 접근하기 위해 허용
       token: 봇 토큰
       token-description: 당신의 Discord 봇 토큰
       token-placeholder: Discord 봇 토큰을 입력해주세요
       configured: Discord 구성 완료!
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: Discord disabled
+        missing-token: Token required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: Discord connected
+        error: Discord error
+      status-detail:
+        disabled: Turn on the integration to start the local Discord bot service.
+        missing-token: Enter a Discord bot token, then enable the integration.
+        idle: Discord has not started yet.
+        syncing: Sending the current Discord settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to validate the token and report back.
+        connecting: Discord is validating the token and starting the bot.
+        ready: Discord bot is listening for messages.
+        error: Discord could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        discord-service: The Discord bot service did not report back. Restart the web or desktop app, or run @proj-airi/discord-bot.
+    messaging-telegram:
+      description: Telegram에서 米塔와 대화합니다. 이미지 및 지원 모델의 동영상 파일 포함
+      title: Telegram
+      enable: Telegram 통합 사용
+      enable-description: 米塔가 Telegram을 통해 상호작용하도록 허용
+      token: 봇 API 토큰
+      token-description: BotFather에서 받은 Telegram 봇 API 토큰
+      token-placeholder: Telegram 봇 API 토큰 입력
+      configured: Telegram 구성 완료!
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: Telegram disabled
+        missing-token: Token required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: Telegram connected
+        error: Telegram error
+      status-detail:
+        disabled: Turn on the integration to start the local Telegram bot service.
+        missing-token: Enter a BotFather token, then enable the integration.
+        idle: Telegram has not started yet.
+        syncing: Sending the current Telegram settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to validate the token and report back.
+        connecting: Telegram is validating the token and starting the bot.
+        ready: Telegram bot is listening for messages.
+        error: Telegram could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        telegram-service: The Telegram bot service did not report back. Restart the web or desktop app, or run @proj-airi/telegram-bot.
     speech:
       description: 음성 합성
       sections:
@@ -404,7 +463,7 @@ pages:
       description: X / 트위터 탐색 및 사용량
       title: X / 트위터
       enable: X / 트위터 통합 사용
-      enable-description: AIRI가 X / 트위터를 접근하기 위해 허용
+      enable-description: 米塔가 X / 트위터를 접근하기 위해 허용
       api-key: API 키
       api-key-description: X / 트위터의 API 키
       api-key-placeholder: X / 트위터의 API 키를 입력해주세요

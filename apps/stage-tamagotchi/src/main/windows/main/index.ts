@@ -19,9 +19,9 @@ import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
 import { initScreenCaptureForWindow } from '@proj-airi/electron-screen-capture/main'
 import { defu } from 'defu'
-import { BrowserWindow, ipcMain, shell } from 'electron'
+import { BrowserWindow, ipcMain, screen, shell } from 'electron'
 import { isLinux, isMacOS } from 'std-env'
-import { array, number, object, optional, string } from 'valibot'
+import { array, boolean, number, object, optional, string } from 'valibot'
 
 import icon from '../../../../resources/icon.png?asset'
 
@@ -39,10 +39,28 @@ const appConfigSchema = object({
     y: optional(number()),
     width: optional(number()),
     height: optional(number()),
+    userAdjusted: optional(boolean()),
+    boundsVersion: optional(number()),
   }))),
 })
 
 type AppConfig = InferOutput<typeof appConfigSchema>
+
+const DEFAULT_MAIN_WINDOW_ASPECT_RATIO = 0.68
+const DEFAULT_MAIN_WINDOW_MARGIN = 16
+const MAIN_WINDOW_BOUNDS_VERSION = 2
+
+function computeDefaultMainWindowBounds(): Rectangle {
+  const workArea = screen.getPrimaryDisplay().workArea
+  const availableWidth = Math.max(260, workArea.width - DEFAULT_MAIN_WINDOW_MARGIN * 2)
+  const availableHeight = Math.max(320, workArea.height - DEFAULT_MAIN_WINDOW_MARGIN * 2)
+  const height = Math.round(Math.min(availableHeight, 720, Math.max(560, workArea.height * 0.72)))
+  const width = Math.round(Math.min(availableWidth, 500, Math.max(360, height * DEFAULT_MAIN_WINDOW_ASPECT_RATIO)))
+  const x = Math.round(workArea.x + workArea.width - width - DEFAULT_MAIN_WINDOW_MARGIN)
+  const y = Math.round(workArea.y + workArea.height - height - DEFAULT_MAIN_WINDOW_MARGIN)
+
+  return { x, y, width, height }
+}
 
 export async function setupMainWindow(params: {
   settingsWindow: () => Promise<BrowserWindow>
@@ -67,14 +85,21 @@ export async function setupMainWindow(params: {
 
   setupConfig()
 
-  const mainWindowConfig = getConfig().windows?.find(w => w.title === 'AIRI' && w.tag === 'main')
+  const mainWindowConfig = getConfig().windows?.find(w =>
+    w.title === 'AIRI'
+    && w.tag === 'main'
+    && w.userAdjusted
+    && w.boundsVersion === MAIN_WINDOW_BOUNDS_VERSION,
+  )
+  const initialBounds = mainWindowConfig ?? computeDefaultMainWindowBounds()
+  let shouldPersistBounds = false
 
   const window = new BrowserWindow({
     title: 'AIRI',
-    width: mainWindowConfig?.width ?? 450.0,
-    height: mainWindowConfig?.height ?? 600.0,
-    x: mainWindowConfig?.x,
-    y: mainWindowConfig?.y,
+    width: initialBounds.width,
+    height: initialBounds.height,
+    x: initialBounds.x,
+    y: initialBounds.y,
     show: false,
     icon,
     webPreferences: {
@@ -119,6 +144,8 @@ export async function setupMainWindow(params: {
         y: newBounds.y,
         width: newBounds.width,
         height: newBounds.height,
+        userAdjusted: true,
+        boundsVersion: MAIN_WINDOW_BOUNDS_VERSION,
       })
     }
     else {
@@ -128,6 +155,8 @@ export async function setupMainWindow(params: {
       mainWindowConfig.y = newBounds.y
       mainWindowConfig.width = newBounds.width
       mainWindowConfig.height = newBounds.height
+      mainWindowConfig.userAdjusted = true
+      mainWindowConfig.boundsVersion = MAIN_WINDOW_BOUNDS_VERSION
 
       config.windows[existingConfigIndex] = mainWindowConfig
     }
@@ -135,8 +164,14 @@ export async function setupMainWindow(params: {
     updateConfig(config)
   }
 
-  window.on('resize', () => handleNewBounds(window.getBounds()))
-  window.on('move', () => handleNewBounds(window.getBounds()))
+  window.on('resize', () => {
+    if (shouldPersistBounds)
+      handleNewBounds(window.getBounds())
+  })
+  window.on('move', () => {
+    if (shouldPersistBounds)
+      handleNewBounds(window.getBounds())
+  })
 
   // Thanks to [@HeartArmy](https://github.com/HeartArmy) for the tip implementation.
   //
@@ -149,7 +184,12 @@ export async function setupMainWindow(params: {
     window.setWindowButtonVisibility(false)
   }
 
-  window.on('ready-to-show', () => window!.show())
+  window.on('ready-to-show', () => {
+    window!.show()
+    setTimeout(() => {
+      shouldPersistBounds = true
+    }, 500)
+  })
   window.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }

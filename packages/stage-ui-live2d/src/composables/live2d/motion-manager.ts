@@ -1,7 +1,9 @@
 import type { Cubism4InternalModel, InternalModel } from 'pixi-live2d-display/cubism4'
-import type { Ref } from 'vue'
+import type { MaybeRefOrGetter, Ref } from 'vue'
 
 import type { BeatSyncController } from './beat-sync'
+
+import { toValue } from 'vue'
 
 import { useLive2DIdleEyeFocus } from './animation'
 
@@ -213,6 +215,18 @@ export function useMotionUpdatePluginIdleDisable(idleEyeFocus = useLive2DIdleEye
 export function useMotionUpdatePluginIdleFocus(idleEyeFocus = useLive2DIdleEyeFocus()): MotionManagerPlugin {
   return (ctx) => {
     if (!ctx.isIdleMotion || ctx.handled)
+      return
+
+    idleEyeFocus.update(ctx.internalModel, ctx.now)
+  }
+}
+
+export function useMotionUpdatePluginIdleFocusWithControl(disabled: MaybeRefOrGetter<boolean>, idleEyeFocus = useLive2DIdleEyeFocus()): MotionManagerPlugin {
+  return (ctx) => {
+    if (!ctx.isIdleMotion || ctx.handled)
+      return
+
+    if (toValue(disabled))
       return
 
     idleEyeFocus.update(ctx.internalModel, ctx.now)

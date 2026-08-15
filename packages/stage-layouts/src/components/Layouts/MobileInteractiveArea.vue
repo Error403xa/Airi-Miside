@@ -5,6 +5,7 @@ import type { ChatProvider } from '@xsai-ext/providers/utils'
 import { ChatHistory, HearingConfigDialog } from '@proj-airi/stage-ui/components'
 import { useAudioAnalyzer } from '@proj-airi/stage-ui/composables'
 import { useAudioContext } from '@proj-airi/stage-ui/stores/audio'
+import { useAutoGLMStore } from '@proj-airi/stage-ui/stores/autoglm'
 import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
 import { useChatMaintenanceStore } from '@proj-airi/stage-ui/stores/chat/maintenance'
 import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
@@ -19,6 +20,7 @@ import { computed, onMounted, onUnmounted, ref, useTemplateRef, watch } from 'vu
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
+import AutoGLMControls from '../Widgets/AutoGLMControls.vue'
 import IndicatorMicVolume from '../Widgets/IndicatorMicVolume.vue'
 import ActionAbout from './InteractiveArea/Actions/About.vue'
 import ActionViewControls from './InteractiveArea/Actions/ViewControls.vue'
@@ -46,6 +48,7 @@ const backgroundDialogOpen = ref(false)
 
 const screenSafeArea = useScreenSafeArea()
 const providersStore = useProvidersStore()
+const autoGLM = useAutoGLMStore()
 const { activeProvider, activeModel } = storeToRefs(useConsciousnessStore())
 
 useResizeObserver(document.documentElement, () => screenSafeArea.update())
@@ -77,6 +80,11 @@ async function handleSend() {
   messageInput.value = ''
 
   try {
+    if (autoGLM.shouldHandleChat) {
+      await ingest(textToSend, {})
+      return
+    }
+
     const providerConfig = providersStore.getProviderConfig(activeProvider.value)
 
     await ingest(textToSend, {
@@ -87,7 +95,6 @@ async function handleSend() {
   }
   catch (error) {
     messageInput.value = textToSend
-    messages.value.pop()
     messages.value.push({
       role: 'error',
       content: (error as Error).message,
@@ -211,6 +218,7 @@ onMounted(() => {
             <div i-solar:face-scan-circle-outline size-5 text="neutral-500 dark:neutral-400" />
           </button> -->
           <ActionViewControls v-model="viewControlsActiveMode" @reset="() => viewControlsInputsRef?.resetOnMode()" />
+          <AutoGLMControls variant="floating" />
           <button
             border="2 solid neutral-100/60 dark:neutral-800/30"
             bg="neutral-50/70 dark:neutral-800/70"

@@ -311,7 +311,7 @@ pages:
       description: Factorioをプレイ！
       title: Factorio
       enable: Factorio連携を有効にする
-      enable-description: AIRIがFactorioゲームと通信できるようにする
+      enable-description: 米塔がFactorioゲームと通信できるようにする
       server-address: サーバーアドレス
       server-address-description: FactorioサーバーのIPアドレスまたはホスト名
       server-address-placeholder: サーバーアドレスを入力 (例： localhostまたは192.168.1.100)
@@ -325,7 +325,7 @@ pages:
       description: Minecraftをプレイ！
       title: Minecraft
       enable: Minecraft連携を有効にする
-      enable-description: AIRIがMinecraftゲームと対話できるようにする
+      enable-description: 米塔がMinecraftゲームと対話できるようにする
       server-address: サーバーアドレス
       server-address-description: MinecraftサーバーのIPアドレスまたはホスト名
       server-address-placeholder: サーバーアドレスを入力 (例： localhostまたはplay.example.com)
@@ -352,11 +352,70 @@ pages:
       description: Discordでのチャットとボイスチャット
       title: Discord
       enable: Discord連携を有効にする
-      enable-description: AIRIがDiscordを介して対話できるようにする
+      enable-description: 米塔がDiscordを介して対話できるようにする
       token: ボットトークン
       token-description: あなたのDiscordボットトークン
       token-placeholder: Discordボットトークンを入力
       configured: Discordは適切に設定されています！
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: Discord disabled
+        missing-token: Token required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: Discord connected
+        error: Discord error
+      status-detail:
+        disabled: Turn on the integration to start the local Discord bot service.
+        missing-token: Enter a Discord bot token, then enable the integration.
+        idle: Discord has not started yet.
+        syncing: Sending the current Discord settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to validate the token and report back.
+        connecting: Discord is validating the token and starting the bot.
+        ready: Discord bot is listening for messages.
+        error: Discord could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        discord-service: The Discord bot service did not report back. Restart the web or desktop app, or run @proj-airi/discord-bot.
+    messaging-telegram:
+      description: Telegram で 米塔 と会話します。画像と対応モデルの動画ファイルに対応
+      title: Telegram
+      enable: Telegram連携を有効にする
+      enable-description: 米塔がTelegramを介して対話できるようにする
+      token: Bot APIトークン
+      token-description: BotFatherから取得したTelegramボットAPIトークン
+      token-placeholder: TelegramボットAPIトークンを入力
+      configured: Telegramは適切に設定されています！
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: Telegram disabled
+        missing-token: Token required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: Telegram connected
+        error: Telegram error
+      status-detail:
+        disabled: Turn on the integration to start the local Telegram bot service.
+        missing-token: Enter a BotFather token, then enable the integration.
+        idle: Telegram has not started yet.
+        syncing: Sending the current Telegram settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to validate the token and report back.
+        connecting: Telegram is validating the token and starting the bot.
+        ready: Telegram bot is listening for messages.
+        error: Telegram could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        telegram-service: The Telegram bot service did not report back. Restart the web or desktop app, or run @proj-airi/telegram-bot.
     speech:
       description: 音声合成
       sections:
@@ -404,7 +463,7 @@ pages:
       description: X / Twitterの閲覧と使用
       title: X / Twitter
       enable: X / Twitter連携を有効にする
-      enable-description: AIRIがX / Twitterと対話できるようにする
+      enable-description: 米塔がX / Twitterと対話できるようにする
       api-key: APIキー
       api-key-description: あなたのX / Twitter APIキー
       api-key-placeholder: あなたのX / Twitter APIキーを入力

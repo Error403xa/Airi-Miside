@@ -26,11 +26,12 @@ const { providers, allChatProvidersMetadata } = storeToRefs(providersStore)
 const consciousnessStore = useConsciousnessStore()
 const {
   activeProvider,
+  activeModel,
 } = storeToRefs(consciousnessStore)
 
 // Popular providers for first-time setup
 const popularProviders = computed(() => {
-  const popular = ['openai', 'anthropic', 'google-generative-ai', 'groq', 'openrouter-ai', 'ollama', 'deepseek', 'player2', 'openai-compatible']
+  const popular = ['openai', 'codex', 'anthropic', 'google-generative-ai', 'groq', 'openrouter-ai', 'ollama', 'deepseek', 'player2', 'openai-compatible']
   return allChatProvidersMetadata.value
     .filter(provider => popular.includes(provider.id))
     .sort((a, b) => popular.indexOf(a.id) - popular.indexOf(b.id))
@@ -56,10 +57,17 @@ function handlePreviousStep() {
   }
 }
 
-async function handleNextStep(configData?: { apiKey: string, baseUrl: string, accountId: string }) {
+async function handleNextStep(configData?: { apiKey: string, baseUrl: string, accountId: string, model: string }) {
   // Step 3: Provider configuration - validate and save before proceeding
   if (step.value === 3 && configData) {
     await saveProviderConfiguration(configData)
+
+    if (selectedProvider.value?.id === 'codex' && configData.model?.trim()) {
+      activeModel.value = configData.model.trim()
+      handleSave()
+      return
+    }
+
     direction.value = 'next'
     step.value++
     return
@@ -75,7 +83,7 @@ async function handleNextStep(configData?: { apiKey: string, baseUrl: string, ac
   }
 }
 
-async function saveProviderConfiguration(data: { apiKey: string, baseUrl: string, accountId: string }) {
+async function saveProviderConfiguration(data: { apiKey: string, baseUrl: string, accountId: string, model: string }) {
   if (!selectedProvider.value)
     return
 
@@ -87,6 +95,8 @@ async function saveProviderConfiguration(data: { apiKey: string, baseUrl: string
     config.baseUrl = data.baseUrl.trim()
   if (data.accountId)
     config.accountId = data.accountId.trim()
+  if (data.model)
+    config.model = data.model.trim()
 
   providers.value[selectedProvider.value.id] = {
     ...providers.value[selectedProvider.value.id],

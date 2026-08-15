@@ -59,8 +59,13 @@ const errorMessage = ref('')
 
 // Sync OpenAI Compatible model and voice from provider config
 function syncOpenAICompatibleSettings() {
-  if (activeSpeechProvider.value !== 'openai-compatible-audio-speech')
+  const isOpenAICompatible = activeSpeechProvider.value === 'openai-compatible-audio-speech'
+  const isAiriOfficial = activeSpeechProvider.value === 'airi-official-audio-speech'
+  if (!isOpenAICompatible && !isAiriOfficial)
     return
+
+  const defaultModel = isAiriOfficial ? 'stepfun/stepaudio-2.5-tts' : 'tts-1'
+  const defaultVoice = isAiriOfficial ? 'yuanqishaonv' : 'alloy'
 
   const providerConfig = providersStore.getProviderConfig(activeSpeechProvider.value)
   // Sync model from provider config (override any existing value from previous provider)
@@ -69,7 +74,7 @@ function syncOpenAICompatibleSettings() {
   }
   else {
     // If no model in provider config, use default
-    activeSpeechModel.value = 'tts-1'
+    activeSpeechModel.value = defaultModel
   }
   // Sync voice from provider config (override any existing value from previous provider)
   // Use updateCustomVoiceName to ensure proper reactivity
@@ -79,8 +84,8 @@ function syncOpenAICompatibleSettings() {
   }
   else {
     // If no voice in provider config, use default
-    activeSpeechVoiceId.value = 'alloy'
-    updateCustomVoiceName('alloy')
+    activeSpeechVoiceId.value = defaultVoice
+    updateCustomVoiceName(defaultVoice)
   }
 }
 
@@ -130,7 +135,7 @@ async function generateTestSpeech() {
   let model = activeSpeechModel.value
   let voice = activeSpeechVoice.value
 
-  if (activeSpeechProvider.value === 'openai-compatible-audio-speech') {
+  if (activeSpeechProvider.value === 'openai-compatible-audio-speech' || activeSpeechProvider.value === 'airi-official-audio-speech') {
     if (!model && providerConfig?.model) {
       model = providerConfig.model as string
     }

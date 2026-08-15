@@ -16,6 +16,8 @@ export default defineConfig({
     'crowdin.yaml',
     'crowdin.yml',
     '**/assets/js/**',
+    'packages/stage-ui/src/assets/autoglm/adb-bundle.js',
+    'packages/stage-ui/src/assets/autoglm/ADBKeyboard.apk',
     '**/assets/live2d/models/**',
     'apps/stage-tamagotchi/out/**',
     'apps/stage-tamagotchi/src/bindings/**',

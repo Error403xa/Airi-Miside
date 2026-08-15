@@ -5,7 +5,7 @@ import type { BrowserWindow, BrowserWindowConstructorOptions } from 'electron'
 import type { I18n } from '../../libs/i18n'
 import type { ServerChannel } from '../../services/airi/channel-server'
 
-import { isMacOS } from 'std-env'
+import { isMacOS, isWindows } from 'std-env'
 
 import { createServerChannelService } from '../../services/airi/channel-server'
 import { createI18nService } from '../../services/airi/i18n'
@@ -32,7 +32,9 @@ export function transparentWindowConfig(): BrowserWindowConstructorOptions {
     frame: false,
     titleBarStyle: isMacOS ? 'hidden' : undefined,
     transparent: true,
+    backgroundColor: '#00000000',
     hasShadow: false,
+    thickFrame: isWindows ? false : undefined,
   }
 }
 

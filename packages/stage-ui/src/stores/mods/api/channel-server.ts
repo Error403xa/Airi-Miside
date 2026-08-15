@@ -10,6 +10,7 @@ import { ref, watch } from 'vue'
 import { useWebSocketInspectorStore } from '../../devtools/websocket-inspector'
 
 export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:server', () => {
+  const disabled = import.meta.env.VITE_AIRI_DISABLE_CHANNEL_SERVER === 'true'
   const connected = ref(false)
   const client = ref<Client>()
   const initializing = ref<Promise<void> | null>(null)
@@ -26,6 +27,7 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
     'module:announce',
     'module:configure',
     'module:authenticated',
+    'module:status',
     'spark:notify',
     'spark:emit',
     'spark:command',
@@ -38,6 +40,9 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
   ]
 
   async function initialize(options?: { token?: string, possibleEvents?: Array<keyof WebSocketEvents> }) {
+    if (disabled)
+      return Promise.resolve()
+
     if (connected.value && client.value)
       return Promise.resolve()
     if (initializing.value)
@@ -49,11 +54,29 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
     ]))
 
     initializing.value = new Promise<void>((resolve) => {
+      let initialized = false
+      const markConnected = () => {
+        if (initialized)
+          return
+
+        initialized = true
+        connected.value = true
+        flush()
+        initializeListeners()
+        resolve()
+      }
+
       client.value = new Client({
         name: isStageWeb() ? WebSocketEventSource.StageWeb : isStageTamagotchi() ? WebSocketEventSource.StageTamagotchi : WebSocketEventSource.StageWeb,
         url: websocketUrl.value || defaultWebSocketUrl,
         token: options?.token,
         possibleEvents,
+        onOpen: () => {
+          // Local web/desktop channels do not use an authentication token.
+          // Their socket is ready to accept configuration as soon as it opens.
+          if (!options?.token)
+            markConnected()
+        },
         onAnyMessage: (event) => {
           useWebSocketInspectorStore().add('incoming', event)
         },
@@ -78,10 +101,7 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
 
       client.value.onEvent('module:authenticated', (event) => {
         if (event.data.authenticated) {
-          connected.value = true
-          flush()
-          initializeListeners()
-          resolve()
+          markConnected()
 
           // eslint-disable-next-line no-console
           console.log('WebSocket server connection established and authenticated')
@@ -122,6 +142,9 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
   }
 
   function send<C = undefined>(data: WebSocketEventOptionalSource<C>) {
+    if (disabled)
+      return
+
     if (!client.value && !initializing.value)
       void initialize()
 
@@ -144,6 +167,9 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
   }
 
   function onContextUpdate(callback: (event: WebSocketBaseEvent<'context:update', ContextUpdate>) => void | Promise<void>) {
+    if (disabled)
+      return () => {}
+
     if (!client.value && !initializing.value)
       void initialize()
 
@@ -158,6 +184,9 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
     type: E,
     callback: (event: WebSocketBaseEvent<E, WebSocketEvents[E]>) => void | Promise<void>,
   ) {
+    if (disabled)
+      return () => {}
+
     if (!client.value && !initializing.value)
       void initialize()
 

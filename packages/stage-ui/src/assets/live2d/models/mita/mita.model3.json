@@ -1,0 +1,44 @@
+﻿{
+  "Version": 3,
+  "FileReferences": {
+    "Moc": "mita.moc3",
+    "Textures": [
+      "textures/texture_00.png"
+    ],
+    "Physics": "mita.physics3.json",
+    "DisplayInfo": "mita.cdi3.json",
+    "Expressions": [
+      { "Name": "inside", "File": "inside.exp3.json" },
+      { "Name": "刀", "File": "knife.exp3.json" },
+      { "Name": "刀血", "File": "knife-blood.exp3.json" },
+      { "Name": "嘴血", "File": "mouth-blood.exp3.json" },
+      { "Name": "抬手", "File": "raise-hand.exp3.json" },
+      { "Name": "特殊口型", "File": "special-mouth.exp3.json" },
+      { "Name": "特殊眼睛", "File": "special-eyes.exp3.json" },
+      { "Name": "生气", "File": "angry.exp3.json" },
+      { "Name": "生气表情", "File": "angry-face.exp3.json" },
+      { "Name": "磁带", "File": "cassette.exp3.json" },
+      { "Name": "脸红", "File": "blush.exp3.json" },
+      { "Name": "脸血", "File": "face-blood.exp3.json" },
+      { "Name": "脸黑", "File": "dark-face.exp3.json" },
+      { "Name": "高光", "File": "highlight.exp3.json" }
+    ],
+    "Motions": {
+      "Idle": [
+        { "File": "idle.motion3.json" }
+      ]
+    }
+  },
+  "Groups": [
+    {
+      "Target": "Parameter",
+      "Name": "LipSync",
+      "Ids": []
+    },
+    {
+      "Target": "Parameter",
+      "Name": "EyeBlink",
+      "Ids": []
+    }
+  ]
+}

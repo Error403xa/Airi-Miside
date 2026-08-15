@@ -6,6 +6,7 @@ import NProgress from 'nprogress'
 
 import { autoAnimatePlugin } from '@formkit/auto-animate/vue'
 import { isEnvTruthy } from '@proj-airi/stage-shared'
+import { useStageDisplayStore } from '@proj-airi/stage-ui/stores/stage-display'
 import { MotionPlugin } from '@vueuse/motion'
 import { createPinia } from 'pinia'
 import { setupLayouts } from 'virtual:generated-layouts'
@@ -27,6 +28,7 @@ import './styles/main.css'
 import 'uno.css'
 
 const pinia = createPinia()
+const stageDisplayStore = useStageDisplayStore(pinia)
 
 // TODO: vite-plugin-vue-layouts is long deprecated, replace with another layout solution
 const routeRecords = setupLayouts(routes as RouteRecordRaw[])
@@ -57,6 +59,13 @@ createApp(App)
   .mount('#app')
 
 if (import.meta.env.DEV && !import.meta.env.SSR) {
+  function updateDevtoolsVisibility() {
+    const devtoolsContainer = document.getElementById('__vue-devtools-container__')
+    if (devtoolsContainer) {
+      devtoolsContainer.style.display = stageDisplayStore.immersiveStageEnabled ? 'none' : ''
+    }
+  }
+
   function captureEvents(el: HTMLElement) {
     // Force `pointer-events: auto` as DismissableLayer in Reka UI adds
     // `pointer-events: none` to document body.
@@ -78,6 +87,7 @@ if (import.meta.env.DEV && !import.meta.env.SSR) {
 
         if (devtoolsContainer) {
           captureEvents(devtoolsContainer)
+          updateDevtoolsVisibility()
           observer.disconnect()
         }
       }
@@ -85,6 +95,8 @@ if (import.meta.env.DEV && !import.meta.env.SSR) {
   })
 
   observer.observe(document.body, { childList: true, subtree: true })
+  updateDevtoolsVisibility()
+  stageDisplayStore.$subscribe(() => updateDevtoolsVisibility())
 
   // Disconnect on timeout in case the MutationObserver is left here forever.
   // `observer.disconnect()` is idempotent, so it's safe to call it multiple times.

@@ -134,6 +134,14 @@ export const useSpeechStore = defineStore('speech', () => {
       if (!activeSpeechProvider.value)
         return
 
+      // Skip the reset when provider validation hasn't completed yet (the list
+      // is empty because all providers start as isConfigured:false until the
+      // async validateProvider resolves). Without this guard, the immediate
+      // watcher fires before validation finishes and incorrectly resets the
+      // user's selection to speech-noop.
+      if (configuredProviderIds.length === 0)
+        return
+
       // NOTICE: clear stale selection when the currently selected speech provider
       // is no longer configured to avoid implicit fallback behavior from persisted state.
       if (!configuredProviderIds.includes(activeSpeechProvider.value)) {

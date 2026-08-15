@@ -4,6 +4,7 @@ import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-airi/el
 import { themeColorFromValue, useThemeColor } from '@proj-airi/stage-layouts/composables/theme-color'
 import { ToasterRoot } from '@proj-airi/stage-ui/components'
 import { useSharedAnalyticsStore } from '@proj-airi/stage-ui/stores/analytics'
+import { useAutoGLMStore } from '@proj-airi/stage-ui/stores/autoglm'
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
 import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
 import { usePluginHostInspectorStore } from '@proj-airi/stage-ui/stores/devtools/plugin-host-debug'
@@ -12,6 +13,8 @@ import { clearMcpToolBridge, setMcpToolBridge } from '@proj-airi/stage-ui/stores
 import { useModsServerChannelStore } from '@proj-airi/stage-ui/stores/mods/api/channel-server'
 import { useContextBridgeStore } from '@proj-airi/stage-ui/stores/mods/api/context-bridge'
 import { useAiriCardStore } from '@proj-airi/stage-ui/stores/modules/airi-card'
+import { useDiscordStore } from '@proj-airi/stage-ui/stores/modules/discord'
+import { useTelegramStore } from '@proj-airi/stage-ui/stores/modules/telegram'
 import { useOnboardingStore } from '@proj-airi/stage-ui/stores/onboarding'
 import { usePerfTracerBridgeStore } from '@proj-airi/stage-ui/stores/perf-tracer-bridge'
 import { listProvidersForPluginHost, shouldPublishPluginHostCapabilities } from '@proj-airi/stage-ui/stores/plugin-host-capabilities'
@@ -26,6 +29,7 @@ import { toast, Toaster } from 'vue-sonner'
 import ResizeHandler from './components/ResizeHandler.vue'
 
 import {
+  electronAutoGLMEnsureStarted,
   electronGetServerChannelConfig,
   electronMcpCallTool,
   electronMcpListTools,
@@ -55,15 +59,19 @@ const onboardingStore = useOnboardingStore()
 const router = useRouter()
 const route = useRoute()
 const cardStore = useAiriCardStore()
+const discordStore = useDiscordStore()
+const telegramStore = useTelegramStore()
 const chatSessionStore = useChatSessionStore()
 const serverChannelStore = useModsServerChannelStore()
 const characterOrchestratorStore = useCharacterOrchestratorStore()
 const analyticsStore = useSharedAnalyticsStore()
 const pluginHostInspectorStore = usePluginHostInspectorStore()
+const autoGLM = useAutoGLMStore()
 usePerfTracerBridgeStore()
 
 const context = useElectronEventaContext()
 const getServerChannelConfig = useElectronEventaInvoke(electronGetServerChannelConfig)
+const ensureAutoGLMStarted = useElectronEventaInvoke(electronAutoGLMEnsureStarted)
 const listPlugins = useElectronEventaInvoke(electronPluginList)
 const setPluginEnabled = useElectronEventaInvoke(electronPluginSetEnabled)
 const loadEnabledPlugins = useElectronEventaInvoke(electronPluginLoadEnabled)
@@ -93,6 +101,8 @@ setMcpToolBridge({
   callTool: payload => callMcpTool(payload),
 })
 
+autoGLM.setRuntimeResolver(() => ensureAutoGLMStarted())
+
 watch(language, () => {
   i18n.locale.value = language.value
   setLocale(language.value)
@@ -115,7 +125,10 @@ onMounted(async () => {
   const serverChannelConfig = await getServerChannelConfig()
   serverChannelSettingsStore.websocketTlsConfig = serverChannelConfig.websocketTlsConfig
 
-  await serverChannelStore.initialize({ possibleEvents: ['ui:configure'] }).catch(err => console.error('Failed to initialize Mods Server Channel in App.vue:', err))
+  await serverChannelStore.initialize({ possibleEvents: ['ui:configure', 'module:status'] }).catch(err => console.error('Failed to initialize Mods Server Channel in App.vue:', err))
+  discordStore.startBackendSync()
+  telegramStore.startBackendSync()
+  await autoGLM.initializeRuntime().catch(err => console.error('Failed to initialize AutoGLM runtime in App.vue:', err))
   await contextBridgeStore.initialize()
   characterOrchestratorStore.initialize()
   await startTrackingCursorPoint()
@@ -147,6 +160,8 @@ watch(themeColorsHueDynamic, () => {
 
 onUnmounted(() => {
   contextBridgeStore.dispose()
+  discordStore.stopBackendSync()
+  telegramStore.stopBackendSync()
   clearMcpToolBridge()
 })
 </script>

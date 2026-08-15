@@ -11,6 +11,7 @@ import VueDevTools from 'vite-plugin-vue-devtools'
 import Layouts from 'vite-plugin-vue-layouts'
 import VueMacros from 'vue-macros/vite'
 
+import { attachAutoGLMProxy, createAutoGLMServiceHost } from '@proj-airi/stage-shared/node/autoglm-service'
 import { Download } from '@proj-airi/unplugin-fetch/vite'
 import { DownloadLive2DSDK } from '@proj-airi/unplugin-live2d-sdk/vite'
 import { createS3Provider, WarpDrivePlugin } from '@proj-airi/vite-plugin-warpdrive'
@@ -21,6 +22,11 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 const stageUIAssetsRoot = resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'assets'))
 const sharedCacheDir = resolve(join(import.meta.dirname, '..', '..', '.cache'))
+const autoGLMHost = createAutoGLMServiceHost({
+  cwd: resolve(join(import.meta.dirname, '..', '..')),
+  log: message => console.info(`[AutoGLM] ${message}`),
+  warn: message => console.warn(`[AutoGLM] ${message}`),
+})
 
 export default defineConfig({
   optimizeDeps: {
@@ -61,6 +67,10 @@ export default defineConfig({
     },
   },
   server: {
+    // 允许通过内网穿透/隧道域名访问 dev server（Vite 默认只放行 localhost，
+    // 会拦截未知 Host 头以防 DNS rebinding 攻击）。
+    // .cpolar.top 覆盖所有 cpolar 子域名；按需增删。
+    allowedHosts: ['.cpolar.top'],
     warmup: {
       clientFiles: [
         `${resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src'))}/*.vue`,
@@ -82,6 +92,28 @@ export default defineConfig({
 
   plugins: [
     Info(),
+
+    {
+      name: 'proj-airi:autoglm',
+      configureServer(server) {
+        attachAutoGLMProxy(server.middlewares, server.httpServer, {
+          prefix: '/api/autoglm',
+          getTarget: async () => (await autoGLMHost.ensureStarted()).baseUrl,
+        })
+        server.httpServer?.once('close', () => {
+          void autoGLMHost.stop()
+        })
+      },
+      configurePreviewServer(server) {
+        attachAutoGLMProxy(server.middlewares, server.httpServer, {
+          prefix: '/api/autoglm',
+          getTarget: async () => (await autoGLMHost.ensureStarted()).baseUrl,
+        })
+        server.httpServer?.once('close', () => {
+          void autoGLMHost.stop()
+        })
+      },
+    },
 
     Yaml(),
 

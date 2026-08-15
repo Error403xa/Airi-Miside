@@ -5,6 +5,48 @@ chat:
       core-system: Core System
       you: You
   reasoning: Reasoning
+autoglm:
+  actions:
+    apply-config: Apply configuration
+    check-keyboard: Check keyboard
+    connect: Connect
+    connect-phone: Connect phone
+    disconnect: Disconnect
+    pair: Pair
+  description: Configure AutoGLM and connect the phone AIRI can control.
+  disable: Disable AutoGLM
+  enable: Enable AutoGLM
+  fields:
+    adb-port: ADB port
+    ip-address: IP address
+    max-steps: Max steps
+    pair-code: Pairing code
+    pair-port: Pairing port
+  link-modes:
+    bridge: ADB bridge
+  modes:
+    cloud: Cloud
+    custom: Custom
+    local: Local
+  sections:
+    model:
+      description: Keeps AutoGLM's original cloud, local, and custom model settings.
+      title: Model configuration
+    phone:
+      description: Supports local adb bridge, wireless debugging, and WebUSB.
+      title: Phone connection
+    service:
+      description: AIRI automatically starts and connects to the Open-AutoGLM Python service.
+      title: Service connection
+    wireless:
+      description: Wireless debugging uses local adb bridge. The phone and computer must be on the same LAN.
+      title: Wireless debugging
+  status:
+    keyboard-ready: ADB Keyboard ready
+    keyboard-unchecked: ADB Keyboard unchecked
+    running: AutoGLM is running, step {step}.
+    websocket-connected: WebSocket connected
+    websocket-disconnected: WebSocket disconnected
 message: Say something...
 operations:
   load-models: Load Models

@@ -18,6 +18,7 @@
     ".": "./src/index.ts",
     "./beat-sync": "./src/beat-sync/index.ts",
     "./electron-renderer": "./src/electron-renderer.d.ts",
+    "./node/autoglm-service": "./src/node/autoglm-service.ts",
     "./composables": "./src/composables/index.ts"
   },
   "scripts": {

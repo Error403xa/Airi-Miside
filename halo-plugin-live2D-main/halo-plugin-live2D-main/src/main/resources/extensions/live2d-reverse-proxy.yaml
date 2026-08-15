@@ -1,0 +1,8 @@
+apiVersion: plugin.halo.run/v1alpha1
+kind: ReverseProxy
+metadata:
+  name: live2d-static-resources
+rules:
+  - path: /**
+    file:
+      directory: static

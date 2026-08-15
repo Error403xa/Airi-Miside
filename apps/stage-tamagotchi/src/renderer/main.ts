@@ -4,6 +4,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import Tres from '@tresjs/core'
 
 import { autoAnimatePlugin } from '@formkit/auto-animate/vue'
+import { useStageDisplayStore } from '@proj-airi/stage-ui/stores/stage-display'
 import { MotionPlugin } from '@vueuse/motion'
 import { createPinia } from 'pinia'
 import { setupLayouts } from 'virtual:generated-layouts'
@@ -39,6 +40,7 @@ import '@fontsource/m-plus-rounded-1c'
 import '@fontsource/sniglet'
 
 const pinia = createPinia()
+const stageDisplayStore = useStageDisplayStore(pinia)
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -55,3 +57,30 @@ createApp(App)
   .use(i18n)
   .use(Tres)
   .mount('#app')
+
+if (import.meta.env.DEV && !import.meta.env.SSR) {
+  function updateDevtoolsVisibility() {
+    const devtoolsContainer = document.getElementById('__vue-devtools-container__')
+    if (devtoolsContainer) {
+      devtoolsContainer.style.display = stageDisplayStore.immersiveStageEnabled ? 'none' : ''
+    }
+  }
+
+  const observer = new MutationObserver((mutationsList, observer) => {
+    for (const mutation of mutationsList) {
+      if (mutation.type === 'childList') {
+        const devtoolsContainer = document.getElementById('__vue-devtools-container__')
+
+        if (devtoolsContainer) {
+          updateDevtoolsVisibility()
+          observer.disconnect()
+        }
+      }
+    }
+  })
+
+  observer.observe(document.body, { childList: true, subtree: true })
+  updateDevtoolsVisibility()
+  stageDisplayStore.$subscribe(() => updateDevtoolsVisibility())
+  setTimeout(() => observer.disconnect(), 15 * 1000)
+}

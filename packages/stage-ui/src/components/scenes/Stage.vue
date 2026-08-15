@@ -16,26 +16,34 @@ import { Live2DScene, useLive2d } from '@proj-airi/stage-ui-live2d'
 import { ThreeScene, useModelStore } from '@proj-airi/stage-ui-three'
 import { animations } from '@proj-airi/stage-ui-three/assets/vrm'
 import { createQueue } from '@proj-airi/stream-kit'
+import { Button } from '@proj-airi/ui'
 import { useBroadcastChannel } from '@vueuse/core'
 // import { createTransformers } from '@xsai-transformers/embed'
 // import embedWorkerURL from '@xsai-transformers/embed/worker?worker&url'
 // import { embed } from '@xsai/embed'
 import { generateSpeech } from '@xsai/generate-speech'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { useDelayMessageQueue, useEmotionsMessageQueue } from '../../composables/queues'
 import { llmInferenceEndToken } from '../../constants'
 import { EMOTION_EmotionMotionName_value, EMOTION_VRMExpressionName_value, EmotionThinkMotionName } from '../../constants/emotions'
+import {
+  findLive2DExpressionFile,
+  live2dExpressionControlPrompts,
+  parseLive2DExpressionControlSpecial,
+} from '../../constants/live2d-expression-controls'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
 import { useChatOrchestratorStore } from '../../stores/chat'
+import { DisplayModelFormat, useDisplayModelsStore } from '../../stores/display-models'
 import { useAiriCardStore } from '../../stores/modules'
 import { useSpeechStore } from '../../stores/modules/speech'
 import { useProvidersStore } from '../../stores/providers'
 import { useSettings } from '../../stores/settings'
 import { useSpeechRuntimeStore } from '../../stores/speech-runtime'
+import { useStageDisplayStore } from '../../stores/stage-display'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   paused?: boolean
   focusAt: { x: number, y: number }
   xOffset?: number | string
@@ -50,6 +58,7 @@ const db = ref<DuckDBWasmDrizzleDatabase>()
 
 const vrmViewerRef = ref<InstanceType<typeof ThreeScene>>()
 const live2dSceneRef = ref<InstanceType<typeof Live2DScene>>()
+const interactiveOverlayRef = ref<HTMLElement>()
 
 const settingsStore = useSettings()
 const {
@@ -66,11 +75,13 @@ const {
   live2dShadowEnabled,
   live2dMaxFps,
 } = storeToRefs(settingsStore)
+const displayModelsStore = useDisplayModelsStore()
+const { displayModels } = storeToRefs(displayModelsStore)
 const { mouthOpenSize } = storeToRefs(useSpeakingStore())
 const { audioContext } = useAudioContext()
 const currentAudioSource = ref<AudioBufferSourceNode>()
 
-const { onBeforeMessageComposed, onBeforeSend, onTokenLiteral, onTokenSpecial, onStreamEnd, onAssistantResponseEnd } = useChatOrchestratorStore()
+const { onBeforeMessageComposed, onAfterMessageComposed, onBeforeSend, onTokenLiteral, onTokenSpecial, onStreamEnd, onAssistantResponseEnd } = useChatOrchestratorStore()
 const chatHookCleanups: Array<() => void> = []
 // WORKAROUND: clear previous handlers on unmount to avoid duplicate calls when this component remounts.
 //             We keep per-hook disposers instead of wiping the global chat hooks to play nicely with
@@ -79,9 +90,96 @@ const chatHookCleanups: Array<() => void> = []
 const providersStore = useProvidersStore()
 const live2dStore = useLive2d()
 const vrmStore = useModelStore()
+const {
+  currentExpression,
+  availableExpressions,
+  activeExpressions,
+} = storeToRefs(live2dStore)
 
 const showStage = ref(true)
 const viewUpdateCleanups: Array<() => void> = []
+const showModelDrawer = ref(false)
+const showExpressionDrawer = ref(false)
+const { immersiveStageEnabled } = storeToRefs(useStageDisplayStore())
+
+const fallbackLive2DModelId = 'preset-live2d-2'
+const live2dModelFallbackInProgress = ref(false)
+
+const live2dModels = computed(() => displayModels.value.filter(model =>
+  model.format === DisplayModelFormat.Live2dZip || model.format === DisplayModelFormat.Live2dDirectory,
+))
+const mitaSelected = computed(() => stageModelSelected.value === 'preset-live2d-mita')
+const xiaoMitaSelected = computed(() => stageModelSelected.value === 'preset-live2d-xiaomita')
+const xiaoMitaProSelected = computed(() => stageModelSelected.value === 'preset-live2d-xiaomita-pro')
+const xiaoMitaLikeSelected = computed(() => xiaoMitaSelected.value || xiaoMitaProSelected.value)
+const hasExpressionDrawer = computed(() =>
+  stageModelRenderer.value === 'live2d'
+  && (mitaSelected.value || xiaoMitaProSelected.value)
+  && availableExpressions.value.length > 0,
+)
+const expressionDrawerTitle = computed(() => xiaoMitaProSelected.value ? '小米塔(pro)表情' : '米塔表情')
+const live2dExpressionLabels: Record<string, { displayName: string, emoji: string }> = {
+  default: { displayName: '默认表情', emoji: '😐' },
+  smile: { displayName: '微笑', emoji: '😊' },
+  happy: { displayName: '开心', emoji: '😄' },
+  sad: { displayName: '悲伤', emoji: '😢' },
+  surprised: { displayName: '惊讶', emoji: '😲' },
+  angry: { displayName: '生气', emoji: '😠' },
+}
+function getExpressionDisplayName(expressionName: string) {
+  const label = live2dExpressionLabels[expressionName]
+  return label ? `${label.emoji} ${label.displayName}` : expressionName
+}
+function isExpressionActive(expressionFile: string) {
+  return mitaSelected.value
+    ? activeExpressions.value.includes(expressionFile)
+    : currentExpression.value === expressionFile
+}
+const live2dDisableFocusForSelectedModel = computed(() => mitaSelected.value || xiaoMitaLikeSelected.value || live2dDisableFocus.value)
+const live2dDisableIdleEyeFocus = computed(() => mitaSelected.value)
+const live2dFocusIgnoreLeftRatio = computed(() => {
+  if (mitaSelected.value)
+    return 0.38
+  if (xiaoMitaLikeSelected.value)
+    return 0.28
+
+  return 0
+})
+const live2dFocusTrackingStrengthX = computed(() => {
+  if (mitaSelected.value)
+    return 0.72
+  if (xiaoMitaLikeSelected.value)
+    return 0.85
+
+  return 1
+})
+const live2dFocusTrackingStrengthY = computed(() => {
+  if (mitaSelected.value)
+    return 0.58
+  if (xiaoMitaLikeSelected.value)
+    return 0.78
+
+  return 1
+})
+const live2dScaleForSelectedModel = computed(() => {
+  if (xiaoMitaLikeSelected.value)
+    return props.scale * 0.8
+  if (mitaSelected.value)
+    return props.scale * 0.96
+
+  return props.scale
+})
+const live2dYOffsetForSelectedModel = computed(() => {
+  if (mitaSelected.value)
+    return '2%'
+  if (xiaoMitaLikeSelected.value)
+    return '-3%'
+
+  return props.yOffset
+})
+const live2dForceAutoBlinkEnabledForSelectedModel = computed(() =>
+  mitaSelected.value || xiaoMitaLikeSelected.value || live2dForceAutoBlinkEnabled.value,
+)
 
 // Caption + Presentation broadcast channels
 type CaptionChannelEvent
@@ -160,6 +258,48 @@ delaysQueue.onHandlerEvent('delay', (delay) => {
 function playSpecialToken(special: string) {
   delaysQueue.enqueue(special)
   emotionMessageContentQueue.enqueue(special)
+}
+
+function resolveExpressionFile(expressionId: string, fallbackModel: 'mita' | 'xiaomita-pro') {
+  const mappedExpressionFile = findLive2DExpressionFile(fallbackModel, expressionId)
+  if (mappedExpressionFile === '')
+    return ''
+
+  return availableExpressions.value.find(expression =>
+    expression.expressionFile === mappedExpressionFile
+    || expression.expressionName === expressionId,
+  )?.expressionFile
+}
+
+function applyLive2DExpressionControl(special: string) {
+  const control = parseLive2DExpressionControlSpecial(special)
+  if (!control)
+    return false
+
+  if (control.model === 'mita') {
+    if (!mitaSelected.value)
+      return true
+
+    const expressionFiles = control.expressionIds
+      .map(expressionId => resolveExpressionFile(expressionId, 'mita'))
+      .filter((expressionFile): expressionFile is string => !!expressionFile)
+
+    activeExpressions.value = expressionFiles
+    currentExpression.value = expressionFiles.at(-1) ?? ''
+    return true
+  }
+
+  if (control.model === 'xiaomita-pro') {
+    if (!xiaoMitaProSelected.value)
+      return true
+
+    const expressionFile = resolveExpressionFile(control.expressionIds[0], 'xiaomita-pro') ?? ''
+    activeExpressions.value = []
+    currentExpression.value = expressionFile
+    return true
+  }
+
+  return false
 }
 const lipSyncNode = ref<AudioNode>()
 
@@ -262,40 +402,27 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
     let model = activeSpeechModel.value
     let voice = activeSpeechVoice.value
 
-    if (activeSpeechProvider.value === 'openai-compatible-audio-speech') {
-      // Always prefer provider config for OpenAI Compatible (user configured it there)
-      if (providerConfig?.model) {
-        model = providerConfig.model as string
-      }
-      else {
-        // Fallback to default if not in provider config
-        model = 'tts-1'
-        console.warn('[Speech Pipeline] OpenAI Compatible: No model in provider config, using default', { providerConfig })
+    // These providers store model/voice in the provider config (configured on the
+    // provider settings page). Priority: the active selection made on the
+    // Modules -> Speech page wins; provider config is a fallback; then a hardcoded default.
+    if (activeSpeechProvider.value === 'openai-compatible-audio-speech' || activeSpeechProvider.value === 'airi-official-audio-speech') {
+      if (!model) {
+        model = (providerConfig?.model as string)
+          || (activeSpeechProvider.value === 'airi-official-audio-speech' ? 'stepfun/stepaudio-2.5-tts' : 'tts-1')
       }
 
-      if (providerConfig?.voice) {
+      if (!voice) {
+        const fallbackVoiceId = (providerConfig?.voice as string)
+          || (activeSpeechProvider.value === 'airi-official-audio-speech' ? 'yuanqishaonv' : 'alloy')
         voice = {
-          id: providerConfig.voice as string,
-          name: providerConfig.voice as string,
-          description: providerConfig.voice as string,
+          id: fallbackVoiceId,
+          name: fallbackVoiceId,
+          description: fallbackVoiceId,
           previewURL: '',
           languages: [{ code: 'en', title: 'English' }],
           provider: activeSpeechProvider.value,
           gender: 'neutral',
         }
-      }
-      else {
-        // Fallback to default if not in provider config
-        voice = {
-          id: 'alloy',
-          name: 'alloy',
-          description: 'alloy',
-          previewURL: '',
-          languages: [{ code: 'en', title: 'English' }],
-          provider: activeSpeechProvider.value,
-          gender: 'neutral',
-        }
-        console.warn('[Speech Pipeline] OpenAI Compatible: No voice in provider config, using default', { providerConfig })
       }
     }
 
@@ -319,7 +446,8 @@ const speechPipeline = createSpeechPipeline<AudioBuffer>({
       const audioBuffer = await audioContext.decodeAudioData(res)
       return audioBuffer
     }
-    catch {
+    catch (error) {
+      console.error('[Speech Pipeline] speech synthesis failed', error)
       return null
     }
   },
@@ -438,6 +566,22 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
   })
 }))
 
+chatHookCleanups.push(onAfterMessageComposed(async (_message, context) => {
+  const prompt = mitaSelected.value
+    ? live2dExpressionControlPrompts.mita
+    : xiaoMitaProSelected.value
+      ? live2dExpressionControlPrompts['xiaomita-pro']
+      : ''
+
+  if (!prompt)
+    return
+
+  context.composedMessage.unshift({
+    role: 'system',
+    content: prompt,
+  })
+}))
+
 chatHookCleanups.push(onBeforeSend(async () => {
   currentMotion.value = { group: EmotionThinkMotionName }
 }))
@@ -448,6 +592,9 @@ chatHookCleanups.push(onTokenLiteral(async (literal) => {
 
 chatHookCleanups.push(onTokenSpecial(async (special) => {
   // console.debug('Stage received special token:', special)
+  if (applyLive2DExpressionControl(special))
+    return
+
   currentChatIntent?.writeSpecial(special)
 }))
 
@@ -510,6 +657,72 @@ function readRenderTargetRegionAtClientPoint(clientX: number, clientY: number, r
   return vrmViewerRef.value?.readRenderTargetRegionAtClientPoint?.(clientX, clientY, radius) ?? null
 }
 
+function interactiveOverlayElement() {
+  return interactiveOverlayRef.value
+}
+
+async function selectDisplayModel(modelId: string) {
+  if (stageModelSelected.value === modelId)
+    return
+
+  const model = await displayModelsStore.getDisplayModel(modelId)
+  if (!model)
+    return
+
+  stageModelSelected.value = modelId
+  await settingsStore.updateStageModel()
+
+  if (model.format === DisplayModelFormat.VRM)
+    vrmStore.shouldUpdateView()
+  else
+    live2dStore.shouldUpdateView()
+
+  showModelDrawer.value = false
+  showExpressionDrawer.value = false
+}
+
+async function handleLive2DModelError(error: unknown) {
+  if (stageModelSelected.value === fallbackLive2DModelId) {
+    console.error('[Stage] Fallback Live2D model failed to load.', error)
+    return
+  }
+
+  if (live2dModelFallbackInProgress.value)
+    return
+
+  live2dModelFallbackInProgress.value = true
+  try {
+    console.warn('[Stage] Live2D model failed to load; switching to fallback model.', {
+      failedModelId: stageModelSelected.value,
+      fallbackModelId: fallbackLive2DModelId,
+      error,
+    })
+    await selectDisplayModel(fallbackLive2DModelId)
+  }
+  finally {
+    live2dModelFallbackInProgress.value = false
+  }
+}
+
+function selectExpression(expressionFile: string) {
+  if (mitaSelected.value) {
+    const nextExpressions = activeExpressions.value.includes(expressionFile)
+      ? activeExpressions.value.filter(activeExpression => activeExpression !== expressionFile)
+      : [...activeExpressions.value, expressionFile]
+
+    activeExpressions.value = nextExpressions
+    currentExpression.value = nextExpressions.at(-1) ?? ''
+    return
+  }
+
+  currentExpression.value = expressionFile
+}
+
+function clearExpression() {
+  currentExpression.value = ''
+  activeExpressions.value = []
+}
+
 onUnmounted(() => {
   if (lipSyncLoopId.value) {
     cancelAnimationFrame(lipSyncLoopId.value)
@@ -520,14 +733,123 @@ onUnmounted(() => {
   viewUpdateCleanups.forEach(dispose => dispose?.())
 })
 
+watch(immersiveStageEnabled, (enabled) => {
+  if (!enabled)
+    return
+
+  showModelDrawer.value = false
+  showExpressionDrawer.value = false
+}, { immediate: true })
+
 defineExpose({
   canvasElement,
+  interactiveOverlayElement,
   readRenderTargetRegionAtClientPoint,
 })
 </script>
 
 <template>
-  <div relative>
+  <div :class="['relative h-full w-full']">
+    <div
+      v-if="!immersiveStageEnabled"
+      ref="interactiveOverlayRef"
+      :class="[
+        'pointer-events-auto absolute left-0 top-1/2 z-20 flex -translate-y-1/2 flex-col items-start gap-2',
+        'pl-1',
+      ]"
+    >
+      <Button
+        variant="secondary"
+        size="sm"
+        :class="[
+          'rounded-r-xl rounded-l-none px-2 py-3 shadow-lg',
+          'bg-white/85 text-neutral-900 backdrop-blur-md dark:bg-neutral-950/85 dark:text-white',
+        ]"
+        @click="showModelDrawer = !showModelDrawer"
+      >
+        <div :class="['flex items-center gap-2']">
+          <div :class="[showModelDrawer ? 'i-solar:alt-arrow-left-line-duotone' : 'i-solar:alt-arrow-right-line-duotone']" />
+          <span>人物</span>
+        </div>
+      </Button>
+      <Button
+        v-if="hasExpressionDrawer"
+        variant="secondary"
+        size="sm"
+        :class="[
+          'rounded-r-xl rounded-l-none px-2 py-3 shadow-lg',
+          'bg-white/85 text-neutral-900 backdrop-blur-md dark:bg-neutral-950/85 dark:text-white',
+        ]"
+        @click="showExpressionDrawer = !showExpressionDrawer"
+      >
+        <div :class="['flex items-center gap-2']">
+          <div :class="[showExpressionDrawer ? 'i-solar:alt-arrow-left-line-duotone' : 'i-solar:alt-arrow-right-line-duotone']" />
+          <span>表情</span>
+        </div>
+      </Button>
+      <div
+        v-if="showModelDrawer"
+        :class="[
+          'ml-0.5 max-h-[70vh] w-52 overflow-y-auto rounded-2xl border border-white/30 bg-white/85 p-3 shadow-xl backdrop-blur-md',
+          'dark:border-white/10 dark:bg-neutral-950/88',
+        ]"
+      >
+        <div :class="['mb-2 text-xs font-medium tracking-wide text-neutral-500 dark:text-neutral-400']">
+          切换人物
+        </div>
+        <button
+          v-for="model in live2dModels"
+          :key="model.id"
+          type="button"
+          :class="[
+            'mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition-colors last:mb-0',
+            stageModelSelected === model.id
+              ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-400/15 dark:text-primary-200'
+              : 'bg-black/4 text-neutral-700 hover:bg-black/8 dark:bg-white/6 dark:text-neutral-200 dark:hover:bg-white/10',
+          ]"
+          @click="selectDisplayModel(model.id)"
+        >
+          {{ model.name }}
+        </button>
+      </div>
+      <div
+        v-if="showExpressionDrawer && hasExpressionDrawer"
+        :class="[
+          'ml-0.5 max-h-[70vh] w-52 overflow-y-auto rounded-2xl border border-white/30 bg-white/85 p-3 shadow-xl backdrop-blur-md',
+          'dark:border-white/10 dark:bg-neutral-950/88',
+        ]"
+      >
+        <div :class="['mb-2 text-xs font-medium tracking-wide text-neutral-500 dark:text-neutral-400']">
+          {{ expressionDrawerTitle }}
+        </div>
+        <button
+          type="button"
+          :class="[
+            'mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition-colors',
+            !activeExpressions.length && !currentExpression
+              ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-400/15 dark:text-primary-200'
+              : 'bg-black/4 text-neutral-700 hover:bg-black/8 dark:bg-white/6 dark:text-neutral-200 dark:hover:bg-white/10',
+          ]"
+          @click="clearExpression"
+        >
+          默认
+        </button>
+        <button
+          v-for="expression in availableExpressions"
+          :key="expression.expressionFile"
+          type="button"
+          :class="[
+            'mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition-colors last:mb-0',
+            isExpressionActive(expression.expressionFile)
+              ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-400/15 dark:text-primary-200'
+              : 'bg-black/4 text-neutral-700 hover:bg-black/8 dark:bg-white/6 dark:text-neutral-200 dark:hover:bg-white/10',
+          ]"
+          @click="selectExpression(expression.expressionFile)"
+        >
+          {{ getExpressionDisplayName(expression.expressionName) }}
+        </button>
+      </div>
+    </div>
     <div h-full w-full>
       <Live2DScene
         v-if="stageModelRenderer === 'live2d' && showStage"
@@ -541,16 +863,21 @@ defineExpose({
         :mouth-open-size="mouthOpenSize"
         :paused="paused"
         :x-offset="xOffset"
-        :y-offset="yOffset"
-        :scale="scale"
-        :disable-focus-at="live2dDisableFocus"
+        :y-offset="live2dYOffsetForSelectedModel"
+        :scale="live2dScaleForSelectedModel"
+        :disable-focus-at="live2dDisableFocusForSelectedModel"
+        :disable-idle-eye-focus="live2dDisableIdleEyeFocus"
+        :focus-ignore-left-ratio="live2dFocusIgnoreLeftRatio"
+        :focus-tracking-strength-x="live2dFocusTrackingStrengthX"
+        :focus-tracking-strength-y="live2dFocusTrackingStrengthY"
         :theme-colors-hue="themeColorsHue"
         :theme-colors-hue-dynamic="themeColorsHueDynamic"
         :live2d-idle-animation-enabled="live2dIdleAnimationEnabled"
         :live2d-auto-blink-enabled="live2dAutoBlinkEnabled"
-        :live2d-force-auto-blink-enabled="live2dForceAutoBlinkEnabled"
+        :live2d-force-auto-blink-enabled="live2dForceAutoBlinkEnabledForSelectedModel"
         :live2d-shadow-enabled="live2dShadowEnabled"
         :live2d-max-fps="live2dMaxFps"
+        @error="handleLive2DModelError"
       />
       <ThreeScene
         v-if="stageModelRenderer === 'vrm' && showStage"

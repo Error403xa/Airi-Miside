@@ -15,6 +15,7 @@ const providersStore = useProvidersStore()
 const apiKey = ref('')
 const baseUrl = ref('')
 const accountId = ref('')
+const model = ref('')
 
 const validation = ref<'unchecked' | 'pending' | 'succeed' | 'failed'>('unchecked')
 const validationError = ref<any>()
@@ -29,6 +30,7 @@ function initializeForm() {
   baseUrl.value = (defaultOptions as any)?.baseUrl || ''
   apiKey.value = ''
   accountId.value = ''
+  model.value = ''
 
   // Reset validation
   validation.value = 'unchecked'
@@ -38,7 +40,7 @@ function initializeForm() {
 // Watch for provider changes
 watch(() => context.selectedProvider.value?.id, initializeForm)
 
-watch([apiKey, baseUrl, accountId], () => {
+watch([apiKey, baseUrl, accountId, model], () => {
   if (validation.value === 'failed' || validation.value === 'succeed') {
     validation.value = 'unchecked'
     validationError.value = undefined
@@ -58,11 +60,15 @@ const needsBaseUrl = computed(() => {
   return context.selectedProvider.value.id !== 'cloudflare-workers-ai'
 })
 
+const needsModel = computed(() => context.selectedProvider.value?.id === 'codex')
+
 const canProceed = computed(() => {
   if (!context.selectedProviderId.value)
     return false
 
   if (needsApiKey.value && !apiKey.value.trim())
+    return false
+  if (needsModel.value && !model.value.trim())
     return false
 
   return validation.value !== 'pending'
@@ -91,6 +97,8 @@ async function validateConfiguration() {
       config.baseUrl = baseUrl.value.trim()
     if (context.selectedProvider.value.id === 'cloudflare-workers-ai')
       config.accountId = accountId.value.trim()
+    if (needsModel.value)
+      config.model = model.value.trim()
 
     // Validate using provider's validator
     const metadata = providersStore.getProviderMetadata(context.selectedProvider.value.id)
@@ -115,6 +123,7 @@ async function handleNext() {
       apiKey: apiKey.value,
       baseUrl: baseUrl.value,
       accountId: accountId.value,
+      model: model.value,
     })
   }
 }
@@ -127,6 +136,7 @@ async function handleContinueAnyway() {
     apiKey: apiKey.value,
     baseUrl: baseUrl.value,
     accountId: accountId.value,
+    model: model.value,
   })
   providersStore.forceProviderConfigured(context.selectedProvider.value.id)
 }
@@ -135,6 +145,7 @@ async function handleContinueAnyway() {
 function getApiKeyPlaceholder(providerId: string): string {
   const placeholders: Record<string, string> = {
     'openai': 'sk-...',
+    'codex': 'sk-proj-...',
     'anthropic': 'sk-ant-...',
     'google-generative-ai': 'AI...',
     'openrouter-ai': 'sk-or-...',
@@ -155,6 +166,14 @@ function getApiKeyPlaceholder(providerId: string): string {
 function getBaseUrlPlaceholder(_providerId: string): string {
   const defaultOptions = context.selectedProvider.value?.defaultOptions?.() || {}
   return (defaultOptions as any)?.baseUrl || 'https://api.example.com/v1/'
+}
+
+function getModelPlaceholder(providerId: string): string {
+  const placeholders: Record<string, string> = {
+    codex: 'gpt-4.1-mini',
+  }
+
+  return placeholders[providerId] || 'Model ID'
 }
 
 // Initialize on mount
@@ -206,6 +225,17 @@ initializeForm()
             type="text"
             label="Base URL"
             description="Enter the base URL for the provider's API."
+          />
+        </div>
+
+        <div v-if="needsModel">
+          <FieldInput
+            v-model="model"
+            :placeholder="getModelPlaceholder(context.selectedProvider.value.id)"
+            type="text"
+            label="Model Name"
+            description="Enter the model ID used for Codex requests."
+            required
           />
         </div>
 

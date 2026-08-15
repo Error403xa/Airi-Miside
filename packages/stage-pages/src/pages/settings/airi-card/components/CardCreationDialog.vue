@@ -194,7 +194,7 @@ function saveCard(card: Card): boolean {
   // Before saving, let's validate what the user entered :
   const rawCard: Card = toRaw(card)
 
-  if (!(rawCard.name!.length > 0)) { // ! is used, since a default value is provided, and computed values passed to v-model should never be undefined
+  if (!rawCard.name?.length) { // optional chaining guards against undefined fields (v-model values can be undefined at runtime)
     // No name
     showError.value = true
     errorMessage.value = t('settings.pages.card.creation.errors.name')
@@ -206,31 +206,31 @@ function saveCard(card: Card): boolean {
     errorMessage.value = t('settings.pages.card.creation.errors.version')
     return false
   }
-  else if (!(rawCard.description!.length > 0)) {
+  else if (!rawCard.description?.length) {
     // No description
     showError.value = true
     errorMessage.value = t('settings.pages.card.creation.errors.description')
     return false
   }
-  else if (!(rawCard.personality!.length > 0)) {
+  else if (!rawCard.personality?.length) {
     // No personality
     showError.value = true
     errorMessage.value = t('settings.pages.card.creation.errors.personality')
     return false
   }
-  else if (!(rawCard.scenario!.length > 0)) {
+  else if (!rawCard.scenario?.length) {
     // No Scenario
     showError.value = true
     errorMessage.value = t('settings.pages.card.creation.errors.scenario')
     return false
   }
-  else if (!(rawCard.systemPrompt!.length > 0)) {
+  else if (!rawCard.systemPrompt?.length) {
     // No sys prompt
     showError.value = true
     errorMessage.value = t('settings.pages.card.creation.errors.systemprompt')
     return false
   }
-  else if (!(rawCard.postHistoryInstructions!.length > 0)) {
+  else if (!rawCard.postHistoryInstructions?.length) {
     // No post history prompt
     showError.value = true
     errorMessage.value = t('settings.pages.card.creation.errors.posthistoryinstructions')

@@ -1,0 +1,192 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoGLM Cloud · 手机自动化中枢</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">AutoGLM</div>
+      <div>
+        <div class="brand-title">AutoGLM Cloud</div>
+        <div class="brand-sub">手机自动化控制台</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div id="secureHint" class="hint"></div>
+      <button id="connectBtn" class="btn btn-primary">连接手机</button>
+      <div id="connectionBadge" class="badge">未连接</div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel left">
+      <div class="card config-card">
+        <div class="card-title">一键配置</div>
+        <div class="mode-toggle">
+          <label class="toggle">
+            <input type="radio" name="mode" value="cloud" checked />
+            <span>云端模式</span>
+          </label>
+          <label class="toggle">
+            <input type="radio" name="mode" value="local" />
+            <span>本地模式</span>
+          </label>
+          <label class="toggle">
+            <input type="radio" name="mode" value="custom" />
+            <span>自定义</span>
+          </label>
+        </div>
+        <div class="mode-hint">云端模式适合直接使用 API，本地模式用于自建模型。</div>
+        <div class="mode-toggle bridge-toggle">
+          <label class="toggle">
+            <input type="radio" name="link" value="bridge" checked />
+            <span>本机桥接</span>
+          </label>
+          <label class="toggle">
+            <input type="radio" name="link" value="webusb" />
+            <span>WebUSB</span>
+          </label>
+        </div>
+        <div class="mode-hint">本机桥接使用系统 adb 连接手机，更稳定；WebUSB 适合远端部署。</div>
+
+        <div class="form-grid">
+          <div class="form-field" id="apiKeyField">
+            <label>API Key</label>
+            <input id="apiKeyInput" type="password" placeholder="请输入 API Key" />
+            <div class="help">
+              如果没有 API Key，请访问
+              <a href="https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys" target="_blank" rel="noreferrer">智谱 AI 控制台</a>
+              申请
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Base URL</label>
+            <input id="baseUrlInput" type="text" />
+          </div>
+          <div class="form-field">
+            <label>Model</label>
+            <input id="modelInput" type="text" />
+          </div>
+          <div class="form-field">
+            <label>最大步数</label>
+            <input id="maxStepsInput" type="number" min="10" max="200" value="100" />
+          </div>
+        </div>
+
+        <div class="checklist">
+          <div class="check-item" id="checkUsb">• 连接手机并打开 USB 调试</div>
+          <div class="check-item" id="checkKeyboard">• 安装并启用 ADB Keyboard</div>
+          <div class="check-item" id="checkModel">• 配置模型服务</div>
+        </div>
+      </div>
+
+      <div class="card chat-card">
+        <div class="card-title">任务对话</div>
+        <div id="messages" class="messages"></div>
+        <div class="composer">
+          <textarea id="taskInput" rows="2" placeholder="说出你的需求，例如：打开小红书搜索美食攻略"></textarea>
+          <button id="sendBtn" class="btn btn-ghost">发送</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel right">
+      <div class="card wireless-card">
+        <div class="card-title">无线调试</div>
+        <div class="wireless-grid">
+          <div class="form-field">
+            <label>IP 地址</label>
+            <input id="wifiIp" type="text" placeholder="" />
+          </div>
+          <div class="form-field">
+            <label>配对端口（可选）</label>
+            <input id="pairPort" type="number" placeholder="" />
+          </div>
+          <div class="form-field">
+            <label>配对码（可选）</label>
+            <input id="pairCode" type="text" placeholder="" />
+          </div>
+          <div class="form-field">
+            <label>ADB 端口</label>
+            <input id="adbPort" type="number" value="5555" />
+          </div>
+        </div>
+        <div class="wireless-actions">
+          <button id="pairBtn" class="btn btn-ghost" type="button">配对</button>
+          <button id="wifiConnectBtn" class="btn btn-primary" type="button">连接</button>
+          <button id="wifiDisconnectBtn" class="btn btn-ghost" type="button">断开</button>
+        </div>
+        <div class="device-note">部分设备无需配对码可直接连接。仅本机桥接可用，手机与电脑需在同一局域网。</div>
+      </div>
+
+      <div class="card device-card">
+        <div class="card-title">设备控制</div>
+        <div class="device-grid">
+          <div>
+            <div class="device-label">连接状态</div>
+            <div id="deviceInfo" class="device-value">设备：未连接</div>
+          </div>
+          <div>
+            <div class="device-label">当前模型</div>
+            <div id="modelInfo" class="device-value">模型：未配置</div>
+          </div>
+          <div>
+            <div class="device-label">界面包名</div>
+            <div id="currentPackage" class="device-value">--</div>
+          </div>
+          <div>
+            <div class="device-label">当前界面活动</div>
+            <div id="currentActivity" class="device-value">--</div>
+          </div>
+        </div>
+        <div class="device-actions">
+          <button id="backBtn" class="control-btn" type="button">返回</button>
+          <button id="homeBtn" class="control-btn" type="button">主页</button>
+          <button id="tasksBtn" class="control-btn" type="button">多任务</button>
+        </div>
+        <div class="device-note">提示：建议先连接手机并开启 USB 调试后再发送任务。</div>
+      </div>
+
+      <div class="card status-card">
+        <div class="card-title">运行状态</div>
+        <div class="status-grid">
+          <div>
+            <div class="status-label">WebSocket</div>
+            <div id="wsStatus" class="status-value">未连接</div>
+          </div>
+          <div>
+            <div class="status-label">当前步骤</div>
+            <div id="stepStatus" class="status-value">0</div>
+          </div>
+          <div>
+            <div class="status-label">延迟</div>
+            <div id="latencyStatus" class="status-value">--</div>
+          </div>
+        </div>
+        <div id="statusLog" class="status-log"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div id="modalTitle" class="modal-title"></div>
+      <div id="modalMessage" class="modal-message"></div>
+      <input id="modalInput" class="modal-input" type="text" />
+      <div class="modal-actions">
+        <button id="modalCancel" class="btn btn-ghost">取消</button>
+        <button id="modalConfirm" class="btn btn-primary">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

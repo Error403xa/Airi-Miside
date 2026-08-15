@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { defineInvoke } from '@moeru/eventa'
-import { useElectronEventaContext, useElectronEventaInvoke, useElectronMouseInElement } from '@proj-airi/electron-vueuse'
+import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
 import { useSettings, useSettingsAudioDevice } from '@proj-airi/stage-ui/stores/settings'
+import { useStageDisplayStore } from '@proj-airi/stage-ui/stores/stage-display'
 import { useTheme } from '@proj-airi/ui'
-import { refDebounced, useIntervalFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import ControlButtonTooltip from './control-button-tooltip.vue'
@@ -21,43 +21,31 @@ import {
   electronStartDraggingWindow,
   electronWindowClose,
 } from '../../../../shared/eventa'
+import { useControlsIslandStore } from '../../../stores/controls-island'
 
 const { isDark, toggleDark } = useTheme()
 const { t } = useI18n()
 
 const settingsAudioDeviceStore = useSettingsAudioDevice()
 const settingsStore = useSettings()
+const stageDisplayStore = useStageDisplayStore()
+const controlsIslandStore = useControlsIslandStore()
 const context = useElectronEventaContext()
 const { enabled } = storeToRefs(settingsAudioDeviceStore)
 const { controlsIslandIconSize } = storeToRefs(settingsStore)
+const { immersiveStageEnabled } = storeToRefs(stageDisplayStore)
+const { compactStageEnabled } = storeToRefs(controlsIslandStore)
 const openSettings = useElectronEventaInvoke(electronOpenSettings)
 const openChat = useElectronEventaInvoke(electronOpenChat)
 const isLinux = useElectronEventaInvoke(electron.app.isLinux)
 const closeWindow = useElectronEventaInvoke(electronWindowClose)
 
 const expanded = ref(false)
-const islandRef = ref<HTMLElement>()
-
-const { isOutside } = useElectronMouseInElement(islandRef)
-const isOutsideAfter2seconds = refDebounced(isOutside, 1500)
-
-watch(isOutsideAfter2seconds, (outside) => {
-  if (outside && expanded.value) {
-    expanded.value = false
-  }
-})
-
-useIntervalFn(() => {
-  if (expanded.value && isOutside.value) {
-    expanded.value = false
-  }
-}, 1500)
 
 // Grouped classes for icon / border / padding and combined style class
 const adjustStyleClasses = computed(() => {
   let isLarge: boolean
 
-  // Determine size based on setting
   switch (controlsIslandIconSize.value) {
     case 'large':
       isLarge = true
@@ -91,13 +79,30 @@ const startDraggingWindow = !isLinux() ? defineInvoke(context.value, electronSta
 const hearingDialogOpen = ref(false)
 defineExpose({ hearingDialogOpen })
 
+const compactEyeButtonStyle = computed(() => immersiveStageEnabled.value ? 'border-0 p-1 shadow-none' : adjustStyleClasses.value.button)
+const compactEyeIconClass = computed(() => immersiveStageEnabled.value ? 'size-3.5' : adjustStyleClasses.value.icon)
+const stageVisibilityTooltip = computed(() => immersiveStageEnabled.value
+  ? 'Restore interface'
+  : 'Show character only')
+const compactStageTooltip = computed(() => compactStageEnabled.value
+  ? 'Restore character size'
+  : 'Shrink character')
+
 function refreshWindow() {
   window.location.reload()
+}
+
+function toggleImmersiveStage() {
+  immersiveStageEnabled.value = !immersiveStageEnabled.value
+  if (immersiveStageEnabled.value) {
+    expanded.value = false
+    hearingDialogOpen.value = false
+  }
 }
 </script>
 
 <template>
-  <div ref="islandRef" fixed bottom-2 right-2>
+  <div fixed bottom-2 right-2>
     <div flex flex-col items-end gap-1>
       <!-- iOS Style Drawer Panel -->
       <Transition
@@ -106,7 +111,7 @@ function refreshWindow() {
         enter-from-class="opacity-0 translate-y-8 scale-90 blur-sm"
         leave-to-class="opacity-0 translate-y-8 scale-90 blur-sm"
       >
-        <div v-if="expanded" border="1 neutral-200 dark:neutral-800" mb-2 flex flex-col gap-1 rounded-2xl p-2 backdrop-blur-xl class="bg-neutral-100/80 shadow-2xl shadow-black/20 dark:bg-neutral-900/80">
+        <div v-if="expanded && !immersiveStageEnabled" border="1 neutral-200 dark:neutral-800" mb-2 flex flex-col gap-1 rounded-2xl p-2 backdrop-blur-xl class="bg-neutral-100/80 shadow-2xl shadow-black/20 dark:bg-neutral-900/80">
           <div grid grid-cols-3 gap-2>
             <ControlButtonTooltip>
               <ControlButton :button-style="adjustStyleClasses.button" @click="openSettings">
@@ -147,6 +152,8 @@ function refreshWindow() {
               </template>
             </ControlButtonTooltip>
 
+            <!-- AutoGLM quick entry removed from expanded controls per user request -->
+
             <ControlButtonTooltip>
               <ControlsIslandHearingConfig v-model:show="hearingDialogOpen">
                 <div class="relative">
@@ -166,6 +173,18 @@ function refreshWindow() {
             <ControlsIslandFadeOnHover :icon-class="adjustStyleClasses.icon" :button-style="adjustStyleClasses.button" />
 
             <ControlButtonTooltip>
+              <ControlButton :button-style="adjustStyleClasses.button" @click="controlsIslandStore.toggleCompactStage()">
+                <div
+                  :class="[adjustStyleClasses.icon, compactStageEnabled ? 'i-solar:maximize-square-2-outline' : 'i-solar:minimize-square-2-outline']"
+                  text="neutral-800 dark:neutral-300"
+                />
+              </ControlButton>
+              <template #tooltip>
+                {{ compactStageTooltip }}
+              </template>
+            </ControlButtonTooltip>
+
+            <ControlButtonTooltip>
               <ControlButton :button-style="adjustStyleClasses.button" hover:bg-red-500 hover:text-white @click="closeWindow()">
                 <div i-solar:close-circle-outline :class="adjustStyleClasses.icon" />
               </ControlButton>
@@ -180,28 +199,42 @@ function refreshWindow() {
       <!-- Main Controls -->
       <div flex flex-col gap-1>
         <ControlButtonTooltip side="left">
-          <ControlButton :button-style="adjustStyleClasses.button" @click="expanded = !expanded">
+          <ControlButton :button-style="compactEyeButtonStyle" @click="toggleImmersiveStage">
             <div
-
-              :class="[adjustStyleClasses.icon, expanded ? 'rotate-180' : 'rotate-0']"
-
-              i-solar:alt-arrow-up-line-duotone scale-110 transition-all duration-300
+              :class="[compactEyeIconClass, immersiveStageEnabled ? 'i-solar:eye-outline' : 'i-solar:eye-closed-outline']"
+              :title="stageVisibilityTooltip"
+              :aria-label="stageVisibilityTooltip"
               text="neutral-800 dark:neutral-300"
             />
           </ControlButton>
           <template #tooltip>
-            {{ expanded ? t('tamagotchi.stage.controls-island.collapse') : t('tamagotchi.stage.controls-island.expand') }}
+            {{ stageVisibilityTooltip }}
           </template>
         </ControlButtonTooltip>
 
-        <ControlButtonTooltip side="left">
-          <ControlButton :button-style="adjustStyleClasses.button" cursor-move :class="{ 'drag-region': isLinux }" @mousedown="startDraggingWindow?.()">
-            <div i-ph:arrows-out-cardinal :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
-          </ControlButton>
-          <template #tooltip>
-            {{ t('tamagotchi.stage.controls-island.drag-to-move-window') }}
-          </template>
-        </ControlButtonTooltip>
+        <template v-if="!immersiveStageEnabled">
+          <ControlButtonTooltip side="left">
+            <ControlButton :button-style="adjustStyleClasses.button" @click="expanded = !expanded">
+              <div
+                :class="[adjustStyleClasses.icon, expanded ? 'rotate-180' : 'rotate-0']"
+                i-solar:alt-arrow-up-line-duotone scale-110 transition-all duration-300
+                text="neutral-800 dark:neutral-300"
+              />
+            </ControlButton>
+            <template #tooltip>
+              {{ expanded ? t('tamagotchi.stage.controls-island.collapse') : t('tamagotchi.stage.controls-island.expand') }}
+            </template>
+          </ControlButtonTooltip>
+
+          <ControlButtonTooltip side="left">
+            <ControlButton :button-style="adjustStyleClasses.button" cursor-move :class="{ 'drag-region': isLinux }" @mousedown="startDraggingWindow?.()">
+              <div i-ph:arrows-out-cardinal :class="adjustStyleClasses.icon" text="neutral-800 dark:neutral-300" />
+            </ControlButton>
+            <template #tooltip>
+              {{ t('tamagotchi.stage.controls-island.drag-to-move-window') }}
+            </template>
+          </ControlButtonTooltip>
+        </template>
       </div>
     </div>
   </div>

@@ -1,0 +1,9 @@
+apiVersion: plugin.halo.run/v1alpha1
+kind: ExtensionDefinition
+metadata:
+  name: live2d-head-processor
+spec:
+  className: run.halo.starter.Live2DHeadProcessor
+  extensionPointName: template-head-processor
+  displayName: 'Live2D 前台脚本注入'
+  description: '向主题的所有页面注入 Live2D 初始化脚本，实现全局显示米塔模型'

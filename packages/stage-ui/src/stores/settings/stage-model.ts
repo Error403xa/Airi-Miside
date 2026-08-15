@@ -6,10 +6,12 @@ import { defineStore } from 'pinia'
 
 import { DisplayModelFormat, useDisplayModelsStore } from '../display-models'
 
+const defaultStageModelSelected = 'preset-live2d-mita'
+
 export const useSettingsStageModel = defineStore('settings-stage-model', () => {
   const displayModelsStore = useDisplayModelsStore()
 
-  const stageModelSelected = useLocalStorageManualReset<string>('settings/stage/model', 'preset-live2d-1')
+  const stageModelSelected = useLocalStorageManualReset<string>('settings/stage/model', defaultStageModelSelected)
   const stageModelSelectedDisplayModel = refManualReset<DisplayModel | undefined>(undefined)
   const stageModelSelectedUrl = refManualReset<string | undefined>(undefined)
   const stageModelRenderer = refManualReset<'live2d' | 'vrm' | 'disabled' | undefined>(undefined)
@@ -24,7 +26,12 @@ export const useSettingsStageModel = defineStore('settings-stage-model', () => {
       return
     }
 
-    const model = await displayModelsStore.getDisplayModel(stageModelSelected.value)
+    let model = await displayModelsStore.getDisplayModel(stageModelSelected.value)
+    if (!model) {
+      stageModelSelected.value = defaultStageModelSelected
+      model = await displayModelsStore.getDisplayModel(defaultStageModelSelected)
+    }
+
     if (!model) {
       stageModelSelectedUrl.value = undefined
       stageModelSelectedDisplayModel.value = undefined
@@ -34,6 +41,7 @@ export const useSettingsStageModel = defineStore('settings-stage-model', () => {
 
     switch (model.format) {
       case DisplayModelFormat.Live2dZip:
+      case DisplayModelFormat.Live2dDirectory:
         stageModelRenderer.value = 'live2d'
         break
       case DisplayModelFormat.VRM:

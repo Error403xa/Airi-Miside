@@ -18,9 +18,26 @@ RUN pnpm -F @proj-airi/stage-web run build && \
     pnpm -F @proj-airi/stage-ui run story:build && \
     mv ./packages/stage-ui/.histoire/dist ./apps/stage-web/dist/ui
 
-FROM nginx:stable-alpine AS production-stage
+FROM node:24-trixie AS production-stage
 
-COPY --from=build-stage /app/apps/stage-web/dist /usr/share/nginx/html
+WORKDIR /app
+
+RUN apt update && apt install -y --no-install-recommends \
+    android-tools-adb \
+    ca-certificates \
+    python3 \
+    python3-pip \
+    python3-venv \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN corepack enable
+
+COPY --from=build-stage /app /app
+
+RUN python3 -m pip install --break-system-packages -r ./Open-AutoGLM-main/Open-AutoGLM-main/requirements.txt
+
+ENV HOST=0.0.0.0
+ENV PORT=80
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["pnpm", "-F", "@proj-airi/stage-web", "start"]

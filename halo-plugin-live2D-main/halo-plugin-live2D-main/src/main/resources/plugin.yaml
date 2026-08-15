@@ -1,0 +1,22 @@
+# Refer https://docs.halo.run/developer-guide/plugin/basics/manifest
+
+apiVersion: plugin.halo.run/v1alpha1
+kind: Plugin
+metadata:
+  # The name defines how the plugin is invoked, A unique name
+  name: MiSide_live2d
+spec:
+  enabled: true
+  requires: '>=2.0.0'
+  author:
+    name: Lieey
+    website: https://github.com/alsdhkauuhw/halo-plugin-live2D
+  logo: logo.png
+  homepage: https://github.com/alsdhkauuhw/halo-plugin-live2D#readme
+  repo: https://github.com/alsdhkauuhw/halo-plugin-live2D
+  issues: https://github.com/alsdhkauuhw/halo-plugin-live2D/issues
+  displayName: '米塔 Live2D 插件'
+  description: '为 Halo 添加 米塔 Live2D 模型，支持表情切换和高 DPI 显示'
+  license:
+    - name: 'GPL-3.0'
+      url: 'https://github.com/halo-dev/plugin-starter/blob/main/LICENSE'

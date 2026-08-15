@@ -1,0 +1,36 @@
+services:
+  db:
+    image: ghcr.io/tensorchord/vchord-postgres:pg18-v1.0.0
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: change-this-password
+    volumes:
+      - airi_db:/var/lib/postgresql/data
+      - ../apps/server/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - db
+    env_file:
+      - ../apps/server/.env
+      - ../apps/server/.env.local
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '4821:4821'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../apps/stage-web/dist:/srv:ro
+
+volumes:
+  airi_db:

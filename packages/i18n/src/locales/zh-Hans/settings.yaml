@@ -311,7 +311,7 @@ pages:
       description: 一起玩 Factorio！
       title: 异星工厂 Factorio
       enable: 启用异星工厂集成
-      enable-description: 允许AIRI与异星工厂游戏互动
+      enable-description: 允许米塔与异星工厂游戏互动
       server-address: 服务器地址
       server-address-description: 异星工厂服务器的IP地址或主机名
       server-address-placeholder: 输入服务器地址（例如：localhost或192.168.1.100）
@@ -325,7 +325,7 @@ pages:
       description: 一起玩 Minecraft！
       title: 我的世界 Minecraft
       enable: 启用我的世界集成
-      enable-description: 允许AIRI与我的世界游戏互动
+      enable-description: 允许米塔与我的世界游戏互动
       server-address: 服务器地址
       server-address-description: 我的世界服务器的IP地址或主机名
       server-address-placeholder: 输入服务器地址（例如：localhost或play.example.com）
@@ -352,11 +352,107 @@ pages:
       description: Discord 发消息和语音聊天
       title: Discord
       enable: 启用Discord集成
-      enable-description: 允许AIRI通过Discord进行互动
+      enable-description: 允许米塔通过Discord进行互动
       token: 机器人令牌
       token-description: 您的Discord机器人令牌
       token-placeholder: 输入您的Discord机器人令牌
       configured: Discord已正确配置！
+      retry: 重试
+      never: 从未
+      last-sync: '上次同步：{time}'
+      last-status: '上次服务状态：{time}'
+      status:
+        disabled: Discord 已禁用
+        missing-token: 需要令牌
+        idle: 尚未连接
+        syncing: 正在同步配置
+        waiting-for-service: 等待服务响应
+        connecting: 正在连接
+        ready: Discord 已连接
+        error: Discord 错误
+      status-detail:
+        disabled: 打开集成开关后会启动本地 Discord 机器人服务。
+        missing-token: 输入 Discord 机器人令牌，然后启用集成。
+        idle: Discord 还没有开始连接。
+        syncing: 正在把当前 Discord 设置发送给本地机器人服务。
+        waiting-for-service: 正在等待机器人服务验证令牌并回传状态。
+        connecting: Discord 正在验证令牌并启动机器人。
+        ready: Discord 机器人正在监听消息。
+        error: Discord 无法连接。请查看错误详情后重试。
+      errors:
+        server-runtime: 本地消息服务器没有连接。请重启网页版或桌面版，或确认 @proj-airi/server-runtime 正在 ws://localhost:6121/ws 运行。
+        discord-service: Discord 机器人服务没有回传状态。请重启网页版或桌面版，或确认 @proj-airi/discord-bot 正在运行。
+    messaging-telegram:
+      description: 通过 Telegram 与米塔聊天，支持图片和模型支持的视频文件
+      title: Telegram
+      enable: 启用 Telegram 集成
+      enable-description: 允许米塔通过 Telegram 进行互动
+      token: 机器人 API 令牌
+      token-description: 从 BotFather 获取的 Telegram 机器人 API 令牌
+      token-placeholder: 输入 Telegram 机器人 API 令牌
+      configured: Telegram 已正确配置！
+      retry: 重试
+      never: 从未
+      last-sync: '上次同步：{time}'
+      last-status: '上次服务状态：{time}'
+      status:
+        disabled: Telegram 已禁用
+        missing-token: 需要令牌
+        idle: 尚未连接
+        syncing: 正在同步配置
+        waiting-for-service: 等待服务响应
+        connecting: 正在连接
+        ready: Telegram 已连接
+        error: Telegram 错误
+      status-detail:
+        disabled: 打开集成开关后会启动本地 Telegram 机器人服务。
+        missing-token: 输入 BotFather 令牌，然后启用集成。
+        idle: Telegram 还没有开始连接。
+        syncing: 正在把当前 Telegram 设置发送给本地机器人服务。
+        waiting-for-service: 正在等待机器人服务验证令牌并回传状态。
+        connecting: Telegram 正在验证令牌并启动机器人。
+        ready: Telegram 机器人正在监听消息。
+        error: Telegram 无法连接。请查看错误详情后重试。
+      errors:
+        server-runtime: 本地消息服务器没有连接。请重启网页版或桌面版，或确认 @proj-airi/server-runtime 正在 ws://localhost:6121/ws 运行。
+        telegram-service: Telegram 机器人服务没有回传状态。请重启网页版或桌面版，或确认 @proj-airi/telegram-bot 正在运行。
+    messaging-qq:
+      description: 通过 NapCat 使用 QQ 与米塔聊天
+      title: QQ
+      enable: 启用 QQ 集成
+      enable-description: 允许米塔通过 QQ（NapCat）进行互动
+      ws-url: NapCat WebSocket 地址
+      ws-url-description: NapCat 实例的 WebSocket 连接地址
+      ws-url-placeholder: 'ws://127.0.0.1:3001'
+      access-token: 访问令牌
+      access-token-description: NapCat 的可选访问令牌
+      access-token-placeholder: 输入 NapCat 访问令牌（可选）
+      configured: QQ 已正确配置！
+      retry: 重试
+      never: 从未
+      last-sync: '上次同步：{time}'
+      last-status: '上次服务状态：{time}'
+      status:
+        disabled: QQ 已禁用
+        missing-config: 需要配置
+        idle: 尚未连接
+        syncing: 正在同步配置
+        waiting-for-service: 等待服务响应
+        connecting: 正在连接
+        ready: QQ 已连接
+        error: QQ 错误
+      status-detail:
+        disabled: 打开集成开关后会启动本地 QQ 机器人服务。
+        missing-config: 输入 NapCat WebSocket 地址，然后启用集成。
+        idle: QQ 还没有开始连接。
+        syncing: 正在把当前 QQ 设置发送给本地机器人服务。
+        waiting-for-service: 正在等待机器人服务连接到 NapCat 并回传状态。
+        connecting: QQ 正在连接 NapCat。
+        ready: QQ 机器人正在监听消息。
+        error: QQ 无法连接。请查看错误详情后重试。
+      errors:
+        server-runtime: 本地消息服务器没有连接。请重启网页版或桌面版，或确认 @proj-airi/server-runtime 正在 ws://localhost:6121/ws 运行。
+        qq-service: QQ 机器人服务没有回传状态。请重启网页版或桌面版，或确认 @proj-airi/qq-bot 正在运行。
     speech:
       description: 语音合成
       sections:
@@ -404,7 +500,7 @@ pages:
       description: X / Twitter 的浏览和使用
       title: X / Twitter
       enable: 启用X / Twitter集成
-      enable-description: 允许AIRI与X / Twitter互动
+      enable-description: 允许米塔与X / Twitter互动
       api-key: API密钥
       api-key-description: 您的X / Twitter API密钥
       api-key-placeholder: 输入您的X / Twitter API密钥
@@ -708,6 +804,9 @@ pages:
       openai:
         description: OpenAi.com
         title: OpenAI
+      codex:
+        description: OpenAI Codex
+        title: Codex
       openai-compatible:
         description: OpenAI 兼容 API
         title: OpenAI 兼容 API

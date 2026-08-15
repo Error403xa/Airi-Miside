@@ -5,6 +5,48 @@ chat:
       core-system: 核心系统
       you: 你
   reasoning: 思考
+autoglm:
+  actions:
+    apply-config: 应用配置
+    check-keyboard: 检查键盘
+    connect: 连接
+    connect-phone: 连接手机
+    disconnect: 断开
+    pair: 配对
+  description: 配置 AutoGLM，并连接 AIRI 可以控制的手机。
+  disable: 关闭 AutoGLM
+  enable: 开启 AutoGLM
+  fields:
+    adb-port: ADB 端口
+    ip-address: IP 地址
+    max-steps: 最大步数
+    pair-code: 配对码
+    pair-port: 配对端口
+  link-modes:
+    bridge: 本机 ADB
+  modes:
+    cloud: 云端
+    custom: 自定义
+    local: 本地
+  sections:
+    model:
+      description: 保留 AutoGLM 原有的云端、本地和自定义模型配置。
+      title: 模型配置
+    phone:
+      description: 支持本机 ADB、无线调试和 WebUSB。
+      title: 手机连接
+    service:
+      description: AIRI 会自动启动并连接 Open-AutoGLM Python 服务。
+      title: 服务连接
+    wireless:
+      description: 无线调试使用本机 ADB，手机和电脑需要在同一局域网。
+      title: 无线调试
+  status:
+    keyboard-ready: ADB Keyboard 已就绪
+    keyboard-unchecked: ADB Keyboard 未确认
+    running: AutoGLM 正在执行，第 {step} 步。
+    websocket-connected: WebSocket 已连接
+    websocket-disconnected: WebSocket 未连接
 message: 说点什么...
 operations:
   load-models: 加载模型
@@ -13,7 +55,7 @@ operations:
     ready: 已就绪
 select-a-audio-input: 选择一个音频输入设备
 select-a-model: 选择一个模型
-select-a-voice: 选择一个声线
+select-a-voice: 选择一个声音
 viewers:
   debug-menu:
     emotions: 表情
@@ -24,8 +66,8 @@ viewers:
       neutral: '🙂 日常'
       question: '🤔 疑问'
       sad: '😫 难过'
-      surprised: '🤯 惊喜'
-      think: '🤨 思考'
+      surprised: '😲 惊喜'
+      think: '🤔 思考'
     vrm:
       camera: 摄像机
       model:

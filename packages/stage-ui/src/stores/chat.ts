@@ -13,6 +13,12 @@ import { ref, toRaw } from 'vue'
 import { useAnalytics } from '../composables'
 import { useLlmmarkerParser } from '../composables/llm-marker-parser'
 import { categorizeResponse, createStreamingCategorizer } from '../composables/response-categoriser'
+import {
+  extractLive2DExpressionControls,
+  makeLive2DExpressionControlSpecial,
+  stripLive2DExpressionControls,
+} from '../constants/live2d-expression-controls'
+import { useAutoGLMStore } from './autoglm'
 import { createDatetimeContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
@@ -22,10 +28,10 @@ import { useLLM } from './llm'
 import { useConsciousnessStore } from './modules/consciousness'
 
 interface SendOptions {
-  model: string
-  chatProvider: ChatProvider
+  model?: string
+  chatProvider?: ChatProvider
   providerConfig?: Record<string, unknown>
-  attachments?: { type: 'image', data: string, mimeType: string }[]
+  attachments?: { type: 'image' | 'file', data: string, mimeType: string, filename?: string }[]
   tools?: StreamOptions['tools']
   input?: WebSocketEventInputs
 }
@@ -108,6 +114,15 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
     chatSession.ensureSession(sessionId)
 
+    const autoGLM = useAutoGLMStore()
+    if (autoGLM.shouldHandleChat && sendingMessage.trim() && !options.attachments?.length) {
+      await performAutoGLMSend(sendingMessage, generation, sessionId)
+      return
+    }
+
+    if (!options.model || !options.chatProvider)
+      throw new Error('Chat provider is not configured')
+
     // Inject current datetime context before composing the message
     chatContext.ingestContextMessage(createDatetimeContext())
 
@@ -129,14 +144,80 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const isForegroundSession = () => sessionId === activeSessionId.value
 
     const buildingMessage: StreamingAssistantMessage = { role: 'assistant', content: '', slices: [], tool_results: [], createdAt: Date.now(), id: nanoid() }
+    let pendingExpressionControlText = ''
 
-    const updateUI = () => {
+    let updateUIFrame: number | undefined
+    const flushUI = () => {
+      if (updateUIFrame != null) {
+        cancelAnimationFrame(updateUIFrame)
+        updateUIFrame = undefined
+      }
       if (isForegroundSession()) {
         streamingMessage.value = JSON.parse(JSON.stringify(buildingMessage))
       }
     }
+    const updateUI = () => {
+      if (updateUIFrame != null)
+        return
 
-    updateUI()
+      updateUIFrame = requestAnimationFrame(() => {
+        updateUIFrame = undefined
+        flushUI()
+      })
+    }
+    const handleAssistantLiteral = async (literal: string, context: ChatStreamEventContext) => {
+      pendingExpressionControlText += literal
+
+      let textForExtraction = pendingExpressionControlText
+      pendingExpressionControlText = ''
+
+      const incompleteControlStart = textForExtraction.lastIndexOf('[[')
+      if (incompleteControlStart >= 0 && !textForExtraction.includes(']]', incompleteControlStart + 2)) {
+        pendingExpressionControlText = textForExtraction.slice(incompleteControlStart)
+        textForExtraction = textForExtraction.slice(0, incompleteControlStart)
+      }
+      else if (textForExtraction.endsWith('[')) {
+        pendingExpressionControlText = '['
+        textForExtraction = textForExtraction.slice(0, -1)
+      }
+
+      if (pendingExpressionControlText.length > 200) {
+        textForExtraction += pendingExpressionControlText
+        pendingExpressionControlText = ''
+      }
+
+      const expressionControlResult = extractLive2DExpressionControls(textForExtraction)
+      for (const control of expressionControlResult.controls)
+        await hooks.emitTokenSpecialHooks(makeLive2DExpressionControlSpecial(control), context)
+
+      if (expressionControlResult.visibleText.trim()) {
+        buildingMessage.content += expressionControlResult.visibleText
+
+        await hooks.emitTokenLiteralHooks(expressionControlResult.visibleText, context)
+
+        const lastSlice = buildingMessage.slices.at(-1)
+        if (lastSlice?.type === 'text') {
+          lastSlice.text += expressionControlResult.visibleText
+        }
+        else {
+          buildingMessage.slices.push({
+            type: 'text',
+            text: expressionControlResult.visibleText,
+          })
+        }
+        updateUI()
+      }
+    }
+    const flushPendingExpressionControlText = async (context: ChatStreamEventContext) => {
+      if (!pendingExpressionControlText)
+        return
+
+      const tail = pendingExpressionControlText
+      pendingExpressionControlText = ''
+      await handleAssistantLiteral(tail, context)
+    }
+
+    flushUI()
     trackFirstMessage()
 
     try {
@@ -151,6 +232,15 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               type: 'image_url',
               image_url: {
                 url: `data:${attachment.mimeType};base64,${attachment.data}`,
+              },
+            })
+          }
+          else {
+            contentParts.push({
+              type: 'file',
+              file: {
+                file_data: `data:${attachment.mimeType};base64,${attachment.data}`,
+                filename: attachment.filename,
               },
             })
           }
@@ -187,23 +277,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           const speechOnly = categorizer.filterToSpeech(literal, streamPosition)
           streamPosition += literal.length
 
-          if (speechOnly.trim()) {
-            buildingMessage.content += speechOnly
-
-            await hooks.emitTokenLiteralHooks(speechOnly, streamingMessageContext)
-
-            const lastSlice = buildingMessage.slices.at(-1)
-            if (lastSlice?.type === 'text') {
-              lastSlice.text += speechOnly
-            }
-            else {
-              buildingMessage.slices.push({
-                type: 'text',
-                text: speechOnly,
-              })
-            }
-            updateUI()
-          }
+          await handleAssistantLiteral(speechOnly, streamingMessageContext)
         },
         onSpecial: async (special) => {
           if (shouldAbort())
@@ -215,7 +289,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           if (isStaleGeneration())
             return
 
-          const finalCategorization = categorizeResponse(fullText, activeProvider.value)
+          const finalCategorization = categorizeResponse(stripLive2DExpressionControls(fullText), activeProvider.value)
 
           buildingMessage.categorization = {
             speech: finalCategorization.speech,
@@ -223,7 +297,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           }
           updateUI()
         },
-        minLiteralEmitLength: 24,
+        minLiteralEmitLength: 4,
       })
 
       const toolCallQueue = createQueue<ChatSlices>({
@@ -282,9 +356,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       streamingMessageContext.composedMessage = newMessages as Message[]
 
       await hooks.emitAfterMessageComposedHooks(sendingMessage, streamingMessageContext)
+      newMessages = streamingMessageContext.composedMessage as typeof newMessages
       await hooks.emitBeforeSendHooks(sendingMessage, streamingMessageContext)
 
-      let fullText = ''
       const headers = (options.providerConfig?.headers || {}) as Record<string, string>
 
       if (shouldAbort())
@@ -314,7 +388,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
               break
             case 'text-delta':
-              fullText += event.text
               await parser.consume(event.text)
               break
             case 'finish':
@@ -326,22 +399,31 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       })
 
       await parser.end()
+      await flushPendingExpressionControlText(streamingMessageContext)
+      flushUI()
 
       if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
         sessionMessagesForSend.push(toRaw(buildingMessage))
         chatSession.persistSessionMessages(sessionId)
       }
 
-      await hooks.emitStreamEndHooks(streamingMessageContext)
-      await hooks.emitAssistantResponseEndHooks(fullText, streamingMessageContext)
+      try {
+        const assistantText = typeof buildingMessage.content === 'string' ? buildingMessage.content : ''
 
-      await hooks.emitAfterSendHooks(sendingMessage, streamingMessageContext)
-      await hooks.emitAssistantMessageHooks({ ...buildingMessage }, fullText, streamingMessageContext)
-      await hooks.emitChatTurnCompleteHooks({
-        output: { ...buildingMessage },
-        outputText: fullText,
-        toolCalls: sessionMessagesForSend.filter(msg => msg.role === 'tool') as ToolMessage[],
-      }, streamingMessageContext)
+        await hooks.emitStreamEndHooks(streamingMessageContext)
+        await hooks.emitAssistantResponseEndHooks(assistantText, streamingMessageContext)
+
+        await hooks.emitAfterSendHooks(sendingMessage, streamingMessageContext)
+        await hooks.emitAssistantMessageHooks({ ...buildingMessage }, assistantText, streamingMessageContext)
+        await hooks.emitChatTurnCompleteHooks({
+          output: { ...buildingMessage },
+          outputText: assistantText,
+          toolCalls: sessionMessagesForSend.filter(msg => msg.role === 'tool') as ToolMessage[],
+        }, streamingMessageContext)
+      }
+      catch (error) {
+        console.error('Error running post-send chat hooks:', error)
+      }
 
       if (isForegroundSession()) {
         streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
@@ -349,6 +431,198 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     }
     catch (error) {
       console.error('Error sending message:', error)
+      throw error
+    }
+    finally {
+      sending.value = false
+    }
+  }
+
+  async function performAutoGLMSend(
+    sendingMessage: string,
+    generation: number,
+    sessionId: string,
+  ) {
+    const autoGLM = useAutoGLMStore()
+    const isStaleGeneration = () => chatSession.getSessionGeneration(sessionId) !== generation
+    const shouldAbort = () => isStaleGeneration()
+    if (shouldAbort())
+      return
+
+    chatSession.ensureSession(sessionId)
+    chatContext.ingestContextMessage(createDatetimeContext())
+
+    const sendingCreatedAt = Date.now()
+    const userMessage = { role: 'user' as const, content: sendingMessage, createdAt: sendingCreatedAt, id: nanoid() }
+    const streamingMessageContext: ChatStreamEventContext = {
+      message: userMessage,
+      contexts: chatContext.getContextsSnapshot(),
+      composedMessage: [],
+      input: {
+        type: 'input:text',
+        data: {
+          text: sendingMessage,
+        },
+      },
+    }
+
+    sending.value = true
+
+    const isForegroundSession = () => sessionId === activeSessionId.value
+    const buildingMessage: StreamingAssistantMessage = {
+      role: 'assistant',
+      content: '',
+      slices: [],
+      tool_results: [],
+      createdAt: Date.now(),
+      id: nanoid(),
+    }
+    let pendingExpressionControlText = ''
+
+    let updateUIFrame: number | undefined
+    const flushUI = () => {
+      if (updateUIFrame != null) {
+        cancelAnimationFrame(updateUIFrame)
+        updateUIFrame = undefined
+      }
+      if (isForegroundSession())
+        streamingMessage.value = JSON.parse(JSON.stringify(buildingMessage))
+    }
+    const updateUI = () => {
+      if (updateUIFrame != null)
+        return
+
+      updateUIFrame = requestAnimationFrame(() => {
+        updateUIFrame = undefined
+        flushUI()
+      })
+    }
+
+    function appendAssistantLiteral(literal: string) {
+      if (!literal)
+        return
+
+      buildingMessage.content += literal
+      const lastSlice = buildingMessage.slices.at(-1)
+      if (lastSlice?.type === 'text') {
+        lastSlice.text += literal
+      }
+      else {
+        buildingMessage.slices.push({
+          type: 'text',
+          text: literal,
+        })
+      }
+      updateUI()
+    }
+
+    async function handleAssistantLiteral(literal: string, context: ChatStreamEventContext) {
+      pendingExpressionControlText += literal
+
+      let textForExtraction = pendingExpressionControlText
+      pendingExpressionControlText = ''
+
+      const incompleteControlStart = textForExtraction.lastIndexOf('[[')
+      if (incompleteControlStart >= 0 && !textForExtraction.includes(']]', incompleteControlStart + 2)) {
+        pendingExpressionControlText = textForExtraction.slice(incompleteControlStart)
+        textForExtraction = textForExtraction.slice(0, incompleteControlStart)
+      }
+      else if (textForExtraction.endsWith('[')) {
+        pendingExpressionControlText = '['
+        textForExtraction = textForExtraction.slice(0, -1)
+      }
+
+      if (pendingExpressionControlText.length > 200) {
+        textForExtraction += pendingExpressionControlText
+        pendingExpressionControlText = ''
+      }
+
+      const expressionControlResult = extractLive2DExpressionControls(textForExtraction)
+      for (const control of expressionControlResult.controls)
+        await hooks.emitTokenSpecialHooks(makeLive2DExpressionControlSpecial(control), context)
+
+      appendAssistantLiteral(expressionControlResult.visibleText)
+      if (expressionControlResult.visibleText)
+        await hooks.emitTokenLiteralHooks(expressionControlResult.visibleText, context)
+    }
+
+    async function flushPendingExpressionControlText(context: ChatStreamEventContext) {
+      if (!pendingExpressionControlText)
+        return
+
+      const tail = pendingExpressionControlText
+      pendingExpressionControlText = ''
+      await handleAssistantLiteral(tail, context)
+    }
+
+    flushUI()
+    trackFirstMessage()
+
+    try {
+      await hooks.emitBeforeMessageComposedHooks(sendingMessage, streamingMessageContext)
+
+      if (shouldAbort())
+        return
+
+      const sessionMessagesForSend = chatSession.getSessionMessages(sessionId)
+      sessionMessagesForSend.push(userMessage)
+      chatSession.persistSessionMessages(sessionId)
+
+      await hooks.emitAfterMessageComposedHooks(sendingMessage, streamingMessageContext)
+      await hooks.emitBeforeSendHooks(sendingMessage, streamingMessageContext)
+
+      const fullText = await autoGLM.runTask(sendingMessage, {
+        onAssistantText: async (literal) => {
+          if (shouldAbort())
+            return
+
+          await handleAssistantLiteral(literal, streamingMessageContext)
+        },
+        onUserText: async (text) => {
+          if (shouldAbort())
+            return
+
+          sessionMessagesForSend.push({
+            role: 'user',
+            content: text,
+            createdAt: Date.now(),
+            id: nanoid(),
+          })
+          chatSession.persistSessionMessages(sessionId)
+        },
+      })
+      await flushPendingExpressionControlText(streamingMessageContext)
+      flushUI()
+
+      if (!isStaleGeneration() && buildingMessage.slices.length > 0) {
+        sessionMessagesForSend.push(toRaw(buildingMessage))
+        chatSession.persistSessionMessages(sessionId)
+      }
+
+      try {
+        const assistantText = typeof buildingMessage.content === 'string'
+          ? buildingMessage.content
+          : stripLive2DExpressionControls(typeof fullText === 'string' ? fullText : '')
+
+        await hooks.emitStreamEndHooks(streamingMessageContext)
+        await hooks.emitAssistantResponseEndHooks(assistantText, streamingMessageContext)
+        await hooks.emitAfterSendHooks(sendingMessage, streamingMessageContext)
+        await hooks.emitAssistantMessageHooks({ ...buildingMessage }, assistantText, streamingMessageContext)
+        await hooks.emitChatTurnCompleteHooks({
+          output: { ...buildingMessage },
+          outputText: assistantText,
+          toolCalls: [],
+        }, streamingMessageContext)
+      }
+      catch (error) {
+        console.error('Error running post-send chat hooks:', error)
+      }
+
+      if (isForegroundSession())
+        streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
+    }
+    catch (error) {
+      console.error('Error sending AutoGLM message:', error)
       throw error
     }
     finally {

@@ -38,6 +38,8 @@
     "@opentelemetry/sdk-node": "^0.212.0",
     "@opentelemetry/sdk-trace-node": "^2.5.1",
     "@opentelemetry/semantic-conventions": "^1.40.0",
+    "@proj-airi/server-sdk": "workspace:^",
+    "@proj-airi/server-shared": "workspace:^",
     "@velin-dev/core": "^0.3.4",
     "@xsai/embed": "catalog:",
     "@xsai/generate-text": "catalog:",

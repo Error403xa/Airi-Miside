@@ -1,11 +1,18 @@
 import type { Logg } from '@guiiai/logg'
+import type { Client } from '@proj-airi/server-sdk'
 
+import type { AiriBridge } from '../airi/airi-bridge'
+import type { MinecraftContextService } from '../airi/minecraft-context-service'
 import type { EventBus } from './event-bus'
 import type { RuleEngine } from './perception/rules'
 
-import { useLogg } from '@guiiai/logg'
-import { asClass, asFunction, createContainer, InjectionMode } from 'awilix'
+import { fileURLToPath } from 'node:url'
 
+import { useLogg } from '@guiiai/logg'
+import { asClass, asFunction, asValue, createContainer, InjectionMode } from 'awilix'
+
+import { AiriBridge as AiriBridgeImpl } from '../airi/airi-bridge'
+import { MinecraftContextService as MinecraftContextServiceImpl } from '../airi/minecraft-context-service'
 import { config } from '../composables/config'
 import { TaskExecutor } from './action/task-executor'
 import { Brain } from './conscious/brain'
@@ -24,9 +31,12 @@ export interface ContainerServices {
   taskExecutor: TaskExecutor
   brain: Brain
   reflexManager: ReflexManager
+  airiClient: Client
+  airiBridge: AiriBridge
+  minecraftContextService: MinecraftContextService
 }
 
-export function createAgentContainer() {
+export function createAgentContainer(airiClient: Client) {
   const container = createContainer<ContainerServices>({
     injectionMode: InjectionMode.PROXY,
     strict: true,
@@ -34,6 +44,21 @@ export function createAgentContainer() {
 
   // Register services
   container.register({
+    airiClient: asValue(airiClient),
+
+    airiBridge: asFunction(({ eventBus }: { eventBus: EventBus }) =>
+      new AiriBridgeImpl(airiClient, eventBus),
+    ).singleton(),
+
+    minecraftContextService: asFunction(({ airiBridge }) =>
+      new MinecraftContextServiceImpl({
+        airiBridge,
+        serverHost: config.bot.host,
+        serverPort: config.bot.port,
+        masterUsername: config.bot.masterUsername,
+      }),
+    ).singleton(),
+
     // Create independent logger for each agent
     logger: asFunction(() => useLogg('agent').useGlobalConfig()).singleton(),
 
@@ -67,7 +92,12 @@ export function createAgentContainer() {
         eventBus,
         logger: useLogg('ruleEngine').useGlobalConfig(),
         config: {
-          rulesDir: new URL('./perception/rules', import.meta.url).pathname,
+          // NOTICE: Use fileURLToPath, not URL.pathname — on Windows `.pathname` yields
+          // "/D:/.../rules" (leading slash before the drive), which fs.existsSync/readdirSync cannot
+          // resolve, so the rule loader silently found 0 rules and the whole perception rule engine
+          // (damage/punch/movement signals) was dead. The rest of the codebase already uses
+          // fileURLToPath; this line was the lone deviation.
+          rulesDir: fileURLToPath(new URL('./perception/rules', import.meta.url)),
           slotMs: 20,
         },
       })
@@ -90,6 +120,8 @@ export function createAgentContainer() {
         reflexManager: c.resolve('reflexManager'),
         taskExecutor: c.resolve('taskExecutor'),
         logger: c.resolve('logger'),
+        airiBridge: c.resolve('airiBridge'),
+        minecraftContextService: c.resolve('minecraftContextService'),
       })),
 
     // Reflex Manager (Reactive Layer)

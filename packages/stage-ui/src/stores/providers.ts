@@ -266,6 +266,85 @@ export const useProvidersStore = defineStore('providers', () => {
         }),
       },
     },
+    // AIRI 官方免费语音网关（stepfun TTS）。端点 api.airi.build/api/v1/audio/*，
+    // 鉴权用 airi.moeru.ai 登录后的 bearer token（填进 apiKey）。
+    // 模型/声音走网关自有端点（/audio/models、/audio/voices?model=），动态拉取。
+    'airi-official-audio-speech': {
+      id: 'airi-official-audio-speech',
+      order: -1,
+      category: 'speech',
+      tasks: ['text-to-speech'],
+      nameKey: 'AIRI 官方语音（免费）',
+      name: 'AIRI 官方语音（免费）',
+      descriptionKey: 'AIRI 官方免费语音网关（stepfun TTS）。粘贴 airi.moeru.ai 登录后的 token。',
+      description: 'AIRI 官方免费语音网关（stepfun TTS）。粘贴 airi.moeru.ai 登录后的 token。',
+      icon: 'i-solar:soundwave-bold-duotone',
+      defaultOptions: () => ({ baseUrl: 'https://api.airi.build/api/v1/' }),
+      // createOpenAI(token, baseUrl).speech() 会请求 <baseUrl>audio/speech，
+      // 正好命中网关的 /api/v1/audio/speech。
+      createProvider: async (config: Record<string, unknown>) => {
+        const apiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : ''
+        const baseUrl = (typeof config.baseUrl === 'string' && config.baseUrl.trim()) || 'https://api.airi.build/api/v1/'
+        return createOpenAI(apiKey, baseUrl)
+      },
+      capabilities: {
+        listModels: async (config: Record<string, unknown>) => {
+          const apiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : ''
+          if (!apiKey)
+            return []
+          try {
+            const res = await fetch('https://api.airi.build/api/v1/audio/models', {
+              headers: { Authorization: `Bearer ${apiKey}` },
+            })
+            const data = await res.json()
+            const models = Array.isArray(data?.models) ? data.models : []
+            return models.map((m: any) => ({
+              id: m.id,
+              name: m.name || m.id,
+              provider: 'airi-official-audio-speech',
+              description: m.description || '',
+              contextLength: 0,
+              deprecated: false,
+            })) satisfies ModelInfo[]
+          }
+          catch {
+            return []
+          }
+        },
+        listVoices: async (config: Record<string, unknown>) => {
+          const apiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : ''
+          if (!apiKey)
+            return []
+          try {
+            const res = await fetch('https://api.airi.build/api/v1/audio/voices?model=auto', {
+              headers: { Authorization: `Bearer ${apiKey}` },
+            })
+            const data = await res.json()
+            const voices = Array.isArray(data?.voices) ? data.voices : []
+            return voices.map((v: any) => ({
+              id: v.id,
+              name: v.name || v.id,
+              provider: 'airi-official-audio-speech',
+              languages: Array.isArray(v.languages) ? v.languages : [],
+            })) satisfies VoiceInfo[]
+          }
+          catch {
+            return []
+          }
+        },
+      },
+      validators: {
+        validateProviderConfig: (config) => {
+          const apiKey = typeof config.apiKey === 'string' ? config.apiKey.trim() : ''
+          const errors = apiKey ? [] : [new Error('Token is required')]
+          return {
+            errors,
+            reason: errors.map(e => e.message).join(', '),
+            valid: !!apiKey,
+          }
+        },
+      },
+    },
     'app-local-audio-speech': buildOpenAICompatibleProvider({
       id: 'app-local-audio-speech',
       name: 'App (Local)',
@@ -2035,8 +2114,12 @@ export const useProvidersStore = defineStore('providers', () => {
   function getProviderMetadata(providerId: string) {
     const metadata = providerMetadata[providerId]
 
-    if (!metadata)
+    if (!metadata) {
+      // Add richer logging to help diagnose which providerId is missing at runtime
+      console.error(`Provider metadata for ${providerId} not found. Available providers: ${Object.keys(providerMetadata).join(', ')}`)
+      console.trace()
       throw new Error(`Provider metadata for ${providerId} not found`)
+    }
 
     return {
       ...metadata,

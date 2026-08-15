@@ -311,7 +311,7 @@ pages:
       description: 一起玩 Factorio！
       title: 異星工廠 Factorio
       enable: 啟用異星工廠集成
-      enable-description: 允許 AIRI 與異星工廠遊戲互動
+      enable-description: 允許米塔與異星工廠遊戲互動
       server-address: 伺服器地址
       server-address-description: 異星工廠伺服器的 IP 地址或主機名稱
       server-address-placeholder: 輸入伺服器地址（例如：localhost 或 192.168.1.100）
@@ -325,7 +325,7 @@ pages:
       description: 一起玩 Minecraft！
       title: 我的世界 Minecraft
       enable: 啟用我的世界集成
-      enable-description: 允許 AIRI 與我的世界遊戲互動
+      enable-description: 允許米塔與我的世界遊戲互動
       server-address: 伺服器地址
       server-address-description: 我的世界伺服器的 IP 地址或主機名稱
       server-address-placeholder: 輸入伺服器地址（例如：localhost 或 play.example.com）
@@ -352,11 +352,70 @@ pages:
       description: Discord 訊息與語音聊天
       title: Discord
       enable: 啟用 Discord 集成
-      enable-description: 允許 AIRI 透過 Discord 進行互動
+      enable-description: 允許米塔透過 Discord 進行互動
       token: 機器人權杖
       token-description: 您的 Discord 機器人权杖
       token-placeholder: 輸入您的 Discord 機器人权杖
       configured: Discord 已正確設定！
+      retry: 重試
+      never: 從未
+      last-sync: '上次同步：{time}'
+      last-status: '上次服務狀態：{time}'
+      status:
+        disabled: Discord 已停用
+        missing-token: 需要權杖
+        idle: 尚未連線
+        syncing: 正在同步設定
+        waiting-for-service: 等待服務回應
+        connecting: 正在連線
+        ready: Discord 已連線
+        error: Discord 錯誤
+      status-detail:
+        disabled: 開啟整合後會啟動本機 Discord 機器人服務。
+        missing-token: 輸入 Discord 機器人權杖，然後啟用整合。
+        idle: Discord 尚未開始連線。
+        syncing: 正在把目前 Discord 設定傳送給本機機器人服務。
+        waiting-for-service: 正在等待機器人服務驗證權杖並回傳狀態。
+        connecting: Discord 正在驗證權杖並啟動機器人。
+        ready: Discord 機器人正在監聽訊息。
+        error: Discord 無法連線。請查看錯誤詳情後重試。
+      errors:
+        server-runtime: 本機訊息伺服器沒有連線。請重新啟動網頁版或桌面版，或確認 @proj-airi/server-runtime 正在 ws://localhost:6121/ws 執行。
+        discord-service: Discord 機器人服務沒有回傳狀態。請重新啟動網頁版或桌面版，或確認 @proj-airi/discord-bot 正在執行。
+    messaging-telegram:
+      description: 透過 Telegram 與米塔聊天，支援圖片和模型支援的影片檔案
+      title: Telegram
+      enable: 啟用 Telegram 整合
+      enable-description: 允許米塔透過 Telegram 進行互動
+      token: 機器人 API 權杖
+      token-description: 從 BotFather 取得的 Telegram 機器人 API 權杖
+      token-placeholder: 輸入 Telegram 機器人 API 權杖
+      configured: Telegram 已正確設定！
+      retry: 重試
+      never: 從未
+      last-sync: '上次同步：{time}'
+      last-status: '上次服務狀態：{time}'
+      status:
+        disabled: Telegram 已停用
+        missing-token: 需要權杖
+        idle: 尚未連線
+        syncing: 正在同步設定
+        waiting-for-service: 等待服務回應
+        connecting: 正在連線
+        ready: Telegram 已連線
+        error: Telegram 錯誤
+      status-detail:
+        disabled: 開啟整合後會啟動本機 Telegram 機器人服務。
+        missing-token: 輸入 BotFather 權杖，然後啟用整合。
+        idle: Telegram 尚未開始連線。
+        syncing: 正在把目前 Telegram 設定傳送給本機機器人服務。
+        waiting-for-service: 正在等待機器人服務驗證權杖並回傳狀態。
+        connecting: Telegram 正在驗證權杖並啟動機器人。
+        ready: Telegram 機器人正在監聽訊息。
+        error: Telegram 無法連線。請查看錯誤詳情後重試。
+      errors:
+        server-runtime: 本機訊息伺服器沒有連線。請重新啟動網頁版或桌面版，或確認 @proj-airi/server-runtime 正在 ws://localhost:6121/ws 執行。
+        telegram-service: Telegram 機器人服務沒有回傳狀態。請重新啟動網頁版或桌面版，或確認 @proj-airi/telegram-bot 正在執行。
     speech:
       description: 語音合成
       sections:
@@ -404,7 +463,7 @@ pages:
       description: X / Twitter 的瀏覽與使用
       title: X / Twitter
       enable: 啟用 X / Twitter 集成
-      enable-description: 允許 AIRI 與 X / Twitter 互動
+      enable-description: 允許米塔與 X / Twitter 互動
       api-key: API 金鑰
       api-key-description: 您的 X / Twitter API 金鑰
       api-key-placeholder: 輸入您的 X / Twitter API 金鑰

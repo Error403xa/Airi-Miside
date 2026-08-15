@@ -133,6 +133,12 @@ export function sharedUnoConfig() {
       presetIcons({
         scale: 1.2,
         collections: {
+          ...createExternalPackageIconLoader('@iconify-json/eos-icons'),
+          ...createExternalPackageIconLoader('@iconify-json/lucide'),
+          ...createExternalPackageIconLoader('@iconify-json/ph'),
+          ...createExternalPackageIconLoader('@iconify-json/simple-icons'),
+          ...createExternalPackageIconLoader('@iconify-json/solar'),
+          ...createExternalPackageIconLoader('@iconify-json/svg-spinners'),
           ...createExternalPackageIconLoader('@proj-airi/lobe-icons'),
           ...createExternalPackageIconLoader('@proj-airi/iconify-meteocons'),
         },
@@ -174,7 +180,9 @@ export function sharedUnoConfig() {
           // include js/ts files
           '(components|src)/**/*.{js,ts,vue}', // THIS CAN INCLUDE node_modules
           '**/stage-ui/**/*.{vue,js,ts}', // THIS TOO
+          '**/stage-layouts/**/*.{vue,js,ts}',
           '**/ui/**/*.{vue,js,ts}', // THIS TOO
+          'apps/stage-web/**/*.{vue,js,ts}',
         ],
         exclude: [
           /\/node_modules\//, // DO NOT SCAN THE BLACK HOLE

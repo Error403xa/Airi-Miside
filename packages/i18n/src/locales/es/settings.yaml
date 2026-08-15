@@ -311,7 +311,7 @@ pages:
       description: '¡Jugando Factorio!'
       title: Factorio
       enable: Habilitar integración con Factorio
-      enable-description: Permitir que AIRI interactúe con el juego Factorio
+      enable-description: Permitir que 米塔 interactúe con el juego Factorio
       server-address: Dirección del servidor
       server-address-description: La dirección IP o nombre de host del servidor de Factorio
       server-address-placeholder: Ingrese la dirección del servidor (por ejemplo, localhost o 192.168.1.100)
@@ -325,7 +325,7 @@ pages:
       description: '¡Jugando Minecraft!'
       title: Minecraft
       enable: Habilitar integración con Minecraft
-      enable-description: Permitir que AIRI interactúe con el juego Minecraft
+      enable-description: Permitir que 米塔 interactúe con el juego Minecraft
       server-address: Dirección del servidor
       server-address-description: La dirección IP o nombre de host del servidor de Minecraft
       server-address-placeholder: Ingrese la dirección del servidor (por ejemplo, localhost o play.ejemplo.com)
@@ -352,11 +352,70 @@ pages:
       description: Chat y chat de voz por Discord
       title: Discord
       enable: Habilitar integración con Discord
-      enable-description: Permitir que AIRI interactúe a través de Discord
+      enable-description: Permitir que 米塔 interactúe a través de Discord
       token: Token del bot
       token-description: Su token de bot de Discord
       token-placeholder: Ingrese su token de bot de Discord
       configured: '¡Discord está configurado correctamente!'
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: Discord disabled
+        missing-token: Token required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: Discord connected
+        error: Discord error
+      status-detail:
+        disabled: Turn on the integration to start the local Discord bot service.
+        missing-token: Enter a Discord bot token, then enable the integration.
+        idle: Discord has not started yet.
+        syncing: Sending the current Discord settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to validate the token and report back.
+        connecting: Discord is validating the token and starting the bot.
+        ready: Discord bot is listening for messages.
+        error: Discord could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        discord-service: The Discord bot service did not report back. Restart the web or desktop app, or run @proj-airi/discord-bot.
+    messaging-telegram:
+      description: Chat con 米塔 por Telegram, incluidas imágenes y archivos de video compatibles
+      title: Telegram
+      enable: Habilitar integración con Telegram
+      enable-description: Permitir que 米塔 interactúe a través de Telegram
+      token: Token de API del bot
+      token-description: Token de API del bot de Telegram de BotFather
+      token-placeholder: Ingrese el token de API del bot de Telegram
+      configured: Telegram está configurado correctamente!
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: Telegram disabled
+        missing-token: Token required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: Telegram connected
+        error: Telegram error
+      status-detail:
+        disabled: Turn on the integration to start the local Telegram bot service.
+        missing-token: Enter a BotFather token, then enable the integration.
+        idle: Telegram has not started yet.
+        syncing: Sending the current Telegram settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to validate the token and report back.
+        connecting: Telegram is validating the token and starting the bot.
+        ready: Telegram bot is listening for messages.
+        error: Telegram could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        telegram-service: The Telegram bot service did not report back. Restart the web or desktop app, or run @proj-airi/telegram-bot.
     speech:
       description: Síntesis de voz
       sections:
@@ -404,7 +463,7 @@ pages:
       description: Navegación y uso de X / Twitter
       title: X / Twitter
       enable: Habilitar integración con X / Twitter
-      enable-description: Permitir que AIRI interactúe con X / Twitter
+      enable-description: Permitir que 米塔 interactúe con X / Twitter
       api-key: Clave API
       api-key-description: Su clave API de X / Twitter
       api-key-placeholder: Ingrese su clave API de X / Twitter

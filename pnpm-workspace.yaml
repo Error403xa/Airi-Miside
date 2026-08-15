@@ -6,6 +6,7 @@ packages:
   - plugins/**
   - integrations/**
   - services/**
+  - '!services/minecraft.bak/**'
   - examples/**
   - docs/**
   - apps/**
@@ -74,7 +75,7 @@ catalog:
   drizzle-valibot: ^0.4.2
   electron: ^40.6.1
   embla-carousel-vue: ^9.0.0-rc01
-  es-toolkit: 1.43.0
+  es-toolkit: ^1.44.0
   histoire: 1.0.0-beta.1
   hono: 4.11.3
   idb-keyval: ^6.2.2
@@ -95,7 +96,7 @@ catalog:
   uncrypto: ^0.1.3
   unplugin-info: ^1.2.4
   unstorage: ^1.17.4
-  valibot: 1.2.0
+  valibot: ^1.2.0
   vite: ^8.0.0-beta.15
   vite-plugin-mkcert: ^1.17.10
   vue: ^3.5.25
@@ -104,6 +105,26 @@ catalog:
   xsschema: 0.4.0-beta.13
   yaml: ^2.8.2
   zod: ^4.3.6
+  zod-to-json-schema: ^3.25.1
+  awilix: ^12.1.1
+  canvas: ^3.2.1
+  eventemitter3: ^5.0.4
+  isolated-vm: ^5.0.3
+  minecraft-data: 3.102.3
+  mineflayer: ^4.33.0
+  mineflayer-armor-manager: ^2.0.1
+  mineflayer-auto-eat: ^5.0.3
+  mineflayer-collectblock: ^1.6.0
+  mineflayer-pathfinder: ^2.4.5
+  mineflayer-pvp: ^1.3.2
+  mineflayer-tool: ^1.2.0
+  prismarine-block: ^1.22.0
+  prismarine-entity: ^2.5.0
+  prismarine-item: ^1.17.0
+  prismarine-recipe: ^1.3.1
+  prismarine-viewer: ^1.33.0
+  prismarine-windows: ^2.9.0
+  vec3: ^0.1.10
 
 catalogs:
   vitest:
@@ -132,6 +153,7 @@ onlyBuiltDependencies:
   - es5-ext
   - esbuild
   - ffmpeg-static
+  - isolated-vm
   - less
   - msw
   - onnxruntime-node

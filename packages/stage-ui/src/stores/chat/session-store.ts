@@ -192,6 +192,16 @@ export const useChatSessionStore = defineStore('chat-session', () => {
       sessionGenerations.value[sessionId] = 0
   }
 
+  function hasIndexedSession(sessionId: string) {
+    if (sessionMetas.value[sessionId])
+      return true
+
+    if (!index.value)
+      return false
+
+    return Object.values(index.value.characters).some(character => !!character.sessions[sessionId])
+  }
+
   async function loadIndexForUser(currentUserId: string) {
     const stored = await chatSessionsRepo.getIndex(currentUserId)
     index.value = stored ?? {
@@ -245,6 +255,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
 
   function setSessionMessages(sessionId: string, next: ChatHistoryItem[]) {
     sessionMessages.value[sessionId] = next
+    loadedSessions.add(sessionId)
     void persistSession(sessionId)
   }
 
@@ -259,8 +270,12 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     const loadPromise = (async () => {
       const stored = await chatSessionsRepo.getSession(sessionId)
       if (stored) {
-        sessionMetas.value[sessionId] = stored.meta
-        sessionMessages.value[sessionId] = stored.messages
+        const currentMeta = sessionMetas.value[sessionId]
+        const currentMessages = sessionMessages.value[sessionId]
+        const shouldKeepCurrentMessages = !!currentMessages?.length && !!currentMeta && currentMeta.updatedAt >= stored.meta.updatedAt
+
+        sessionMetas.value[sessionId] = shouldKeepCurrentMessages ? currentMeta : stored.meta
+        sessionMessages.value[sessionId] = shouldKeepCurrentMessages ? currentMessages : stored.messages
         ensureGeneration(sessionId)
       }
       loadedSessions.add(sessionId)
@@ -289,6 +304,7 @@ export const useChatSessionStore = defineStore('chat-session', () => {
     sessionMetas.value[sessionId] = meta
     sessionMessages.value[sessionId] = initialMessages
     ensureGeneration(sessionId)
+    loadedSessions.add(sessionId)
 
     if (!index.value)
       index.value = { userId: currentUserId, characters: {} }
@@ -359,7 +375,13 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   function ensureSession(sessionId: string) {
     ensureGeneration(sessionId)
     if (!sessionMessages.value[sessionId] || sessionMessages.value[sessionId].length === 0) {
+      if (hasIndexedSession(sessionId) && !loadedSessions.has(sessionId)) {
+        void loadSession(sessionId)
+        return
+      }
+
       sessionMessages.value[sessionId] = [generateInitialMessage()]
+      loadedSessions.add(sessionId)
       void persistSession(sessionId)
     }
   }

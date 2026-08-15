@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Button } from '@proj-airi/ui'
+import { Button, FieldInput } from '@proj-airi/ui'
 import { storeToRefs } from 'pinia'
-import { inject } from 'vue'
+import { computed, inject } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import Alert from '../../../misc/alert.vue'
@@ -20,6 +20,20 @@ const {
   providerModels,
   isLoadingActiveProviderModels,
 } = storeToRefs(consciousnessStore)
+
+const shouldShowManualModelInput = computed(() => {
+  return context.selectedProvider.value?.id === 'codex'
+    && !isLoadingActiveProviderModels.value
+    && providerModels.value.length === 0
+})
+
+const manualModelDescription = computed(() => {
+  if (context.selectedProvider.value?.id === 'codex') {
+    return 'Codex 当前使用手动模型模式，请直接输入要调用的模型 ID。'
+  }
+
+  return t('settings.pages.modules.consciousness.sections.section.provider-model-selection.no_models_description')
+})
 </script>
 
 <template>
@@ -34,10 +48,16 @@ const {
       <div h-5 w-5 />
     </div>
 
-    <!-- Using the new RadioCardManySelect component -->
     <div flex-1>
+      <FieldInput
+        v-if="shouldShowManualModelInput"
+        v-model="activeModel"
+        :label="t('settings.pages.modules.consciousness.sections.section.provider-model-selection.manual_model_name')"
+        :description="manualModelDescription"
+        :placeholder="t('settings.pages.modules.consciousness.sections.section.provider-model-selection.manual_model_placeholder')"
+        required
+      />
       <RadioCardManySelect
-        v-if="providerModels.length > 0"
         v-model="activeModel"
         v-model:search-query="modelSearchQuery"
         :items="providerModels.toSorted((a, b) => a.id === activeModel ? -1 : b.id === activeModel ? 1 : 0)"
@@ -52,14 +72,13 @@ const {
         :collapse-button-text="t('settings.pages.modules.consciousness.sections.section.provider-model-selection.collapse')"
         list-class="max-h-[calc(100dvh-17rem)] sm:max-h-120 overflow-y-auto"
       />
-
-      <Alert v-else type="error">
+      <Alert v-if="!isLoadingActiveProviderModels && providerModels.length === 0" type="warning">
         <template #title>
           {{ t('settings.dialogs.onboarding.no-models') }}
         </template>
         <template #content>
           <div class="whitespace-pre-wrap break-all">
-            {{ t('settings.dialogs.onboarding.no-models-help') }}
+            {{ shouldShowManualModelInput ? manualModelDescription : t('settings.dialogs.onboarding.no-models-help') }}
           </div>
         </template>
       </Alert>

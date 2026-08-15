@@ -1,7 +1,7 @@
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 import type { UserMessage } from '@xsai/shared-chat'
 
-import type { ChatStreamEvent, ContextMessage } from '../../../types/chat'
+import type { ChatStreamEvent, ChatStreamEventContext, ContextMessage } from '../../../types/chat'
 
 import { isStageTamagotchi, isStageWeb } from '@proj-airi/stage-shared'
 import { useBroadcastChannel } from '@vueuse/core'
@@ -16,8 +16,26 @@ import { useChatContextStore } from '../../chat/context-store'
 import { useChatSessionStore } from '../../chat/session-store'
 import { useChatStreamStore } from '../../chat/stream-store'
 import { useConsciousnessStore } from '../../modules/consciousness'
+import { useSpeechStore } from '../../modules/speech'
 import { useProvidersStore } from '../../providers'
 import { useModsServerChannelStore } from './channel-server'
+
+function cloneContextForBroadcast(context: ChatStreamEventContext): ChatStreamEventContext {
+  const raw = toRaw(context)
+  const cloneable = {
+    ...raw,
+    input: raw.input
+      ? {
+          ...raw.input,
+          data: {
+            ...raw.input.data,
+            attachments: undefined,
+          },
+        }
+      : undefined,
+  }
+  return structuredClone(cloneable)
+}
 
 export const useContextBridgeStore = defineStore('mods:api:context-bridge', () => {
   const mutex = new Mutex()
@@ -30,6 +48,71 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
   const consciousnessStore = useConsciousnessStore()
   const providersStore = useProvidersStore()
   const { activeProvider, activeModel } = storeToRefs(consciousnessStore)
+
+  // Synthesize an entire assistant reply into one audio clip (mp3 from the
+  // official gateway) so bot modules (telegram/discord/qq) can forward a voice
+  // message. Mirrors the provider/model/voice fallback logic in Stage.vue's
+  // streaming TTS pipeline, but produces a single non-streamed clip.
+  // Returns null (never throws) when speech is unconfigured or synthesis fails.
+  async function synthesizeReplyAudio(text: string): Promise<ArrayBuffer | null> {
+    try {
+      const trimmed = text?.trim()
+      if (!trimmed)
+        return null
+
+      // Lazy-access speechStore to avoid triggering its immediate watcher
+      // before async provider validation completes (race condition that
+      // resets activeSpeechProvider to 'speech-noop').
+      const speechStore = useSpeechStore()
+      const activeSpeechProvider = speechStore.activeSpeechProvider
+      const activeSpeechModel = speechStore.activeSpeechModel
+      const activeSpeechVoice = speechStore.activeSpeechVoice
+
+      if (!activeSpeechProvider || activeSpeechProvider === 'speech-noop')
+        return null
+
+      const provider = await providersStore.getProviderInstance(activeSpeechProvider) as any
+      if (!provider)
+        return null
+
+      const providerConfig = providersStore.getProviderConfig(activeSpeechProvider)
+      let model = activeSpeechModel
+      let voiceInfo = activeSpeechVoice
+
+      if (activeSpeechProvider === 'openai-compatible-audio-speech' || activeSpeechProvider === 'airi-official-audio-speech') {
+        if (!model) {
+          model = (providerConfig?.model as string)
+            || (activeSpeechProvider === 'airi-official-audio-speech' ? 'stepfun/stepaudio-2.5-tts' : 'tts-1')
+        }
+        if (!voiceInfo) {
+          const fallbackVoiceId = (providerConfig?.voice as string)
+            || (activeSpeechProvider === 'airi-official-audio-speech' ? 'yuanqishaonv' : 'alloy')
+          voiceInfo = {
+            id: fallbackVoiceId,
+            name: fallbackVoiceId,
+            description: fallbackVoiceId,
+            previewURL: '',
+            languages: [{ code: 'en', title: 'English' }],
+            provider: activeSpeechProvider,
+            gender: 'neutral',
+          } as any
+        }
+      }
+
+      if (!model || !voiceInfo)
+        return null
+
+      const audio = await speechStore.speech(provider, model, trimmed, voiceInfo.id, providerConfig)
+      if (!audio || audio.byteLength === 0)
+        return null
+
+      return audio
+    }
+    catch (err) {
+      console.error('[context-bridge] reply audio synthesis failed:', err)
+      return null
+    }
+  }
 
   const { post: broadcastContext, data: incomingContext } = useBroadcastChannel<ContextMessage, ContextMessage>({ name: CONTEXT_CHANNEL_NAME })
   const { post: broadcastStreamEvent, data: incomingStreamEvent } = useBroadcastChannel<ChatStreamEvent, ChatStreamEvent>({ name: CHAT_STREAM_CHANNEL_NAME })
@@ -63,6 +146,7 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
         const {
           text,
           textRaw,
+          attachments,
           overrides,
           contextUpdates,
         } = event.data
@@ -125,6 +209,7 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
               await chatOrchestrator.ingest(messageText, {
                 model: activeModel.value,
                 chatProvider,
+                attachments,
                 input: {
                   type: 'input:text',
                   data: {
@@ -139,7 +224,23 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
             }
             catch (err) {
               console.error('Error ingesting text input via context bridge:', err)
+              serverChannelStore.send({
+                type: 'output:gen-ai:chat:message',
+                data: {
+                  ...event.data,
+                  message: { role: 'assistant', content: `AIRI could not complete the request: ${err instanceof Error ? err.message : String(err)}` },
+                },
+              })
             }
+          })
+        }
+        else {
+          serverChannelStore.send({
+            type: 'output:gen-ai:chat:message',
+            data: {
+              ...event.data,
+              message: { role: 'assistant', content: 'AIRI has no active chat model. Configure an AI provider and model in AIRI, then try again.' },
+            },
           })
         }
       }))
@@ -149,52 +250,52 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'before-compose', message, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          broadcastStreamEvent({ type: 'before-compose', message, sessionId: chatSession.activeSessionId, context: cloneContextForBroadcast(context) })
         }),
         chatOrchestrator.onAfterMessageComposed(async (message, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'after-compose', message, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          broadcastStreamEvent({ type: 'after-compose', message, sessionId: chatSession.activeSessionId, context: cloneContextForBroadcast(context) })
         }),
         chatOrchestrator.onBeforeSend(async (message, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'before-send', message, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          broadcastStreamEvent({ type: 'before-send', message, sessionId: chatSession.activeSessionId, context: cloneContextForBroadcast(context) })
         }),
         chatOrchestrator.onAfterSend(async (message, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'after-send', message, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          broadcastStreamEvent({ type: 'after-send', message, sessionId: chatSession.activeSessionId, context: cloneContextForBroadcast(context) })
         }),
         chatOrchestrator.onTokenLiteral(async (literal, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'token-literal', literal, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          broadcastStreamEvent({ type: 'token-literal', literal, sessionId: chatSession.activeSessionId, context: cloneContextForBroadcast(context) })
         }),
         chatOrchestrator.onTokenSpecial(async (special, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'token-special', special, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          broadcastStreamEvent({ type: 'token-special', special, sessionId: chatSession.activeSessionId, context: cloneContextForBroadcast(context) })
         }),
         chatOrchestrator.onStreamEnd(async (context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'stream-end', sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          broadcastStreamEvent({ type: 'stream-end', sessionId: chatSession.activeSessionId, context: cloneContextForBroadcast(context) })
         }),
         chatOrchestrator.onAssistantResponseEnd(async (message, context) => {
           if (isProcessingRemoteStream)
             return
 
-          broadcastStreamEvent({ type: 'assistant-end', message, sessionId: chatSession.activeSessionId, context: structuredClone(toRaw(context)) })
+          broadcastStreamEvent({ type: 'assistant-end', message, sessionId: chatSession.activeSessionId, context: cloneContextForBroadcast(context) })
         }),
 
-        chatOrchestrator.onAssistantMessage(async (message, _messageText, context) => {
+        chatOrchestrator.onAssistantMessage(async (message, messageText, context) => {
           serverChannelStore.send({
             type: 'output:gen-ai:chat:message',
             data: {
@@ -210,6 +311,52 @@ export const useContextBridgeStore = defineStore('mods:api:context-bridge', () =
               },
             },
           })
+
+          // Voice reply for bot modules: only when the request originated from a
+          // messaging bot (telegram/qq/discord), synthesize the whole reply once
+          // and forward the audio so the bot can send a voice message. This never
+          // blocks or breaks the text reply above (which was already sent).
+          const inputData = context.input?.data as Record<string, unknown> | undefined
+          const botSource = inputData?.telegram ?? inputData?.qq ?? inputData?.discord
+          if (botSource) {
+            void (async () => {
+              try {
+                const audio = await synthesizeReplyAudio(messageText)
+                if (!audio)
+                  return
+
+                // Encode to base64 so the audio survives WebSocket/superjson
+                // round-tripping as a plain string (raw ArrayBuffer degrades to
+                // a plain object on the bot side).
+                const bytes = new Uint8Array(audio)
+                let binary = ''
+                for (let i = 0; i < bytes.length; i++)
+                  binary += String.fromCharCode(bytes[i])
+                const audioBase64 = btoa(binary)
+
+                serverChannelStore.send({
+                  type: 'output:gen-ai:speech:audio',
+                  data: {
+                    audioBase64,
+                    mimeType: 'audio/mpeg',
+                    transcript: messageText,
+                    ...(inputData?.telegram ? { telegram: inputData.telegram } : {}),
+                    ...(inputData?.qq ? { qq: inputData.qq } : {}),
+                    ...(inputData?.discord ? { discord: inputData.discord } : {}),
+                    'gen-ai:chat': {
+                      message: context.message as UserMessage,
+                      composedMessage: context.composedMessage,
+                      contexts: context.contexts,
+                      input: context.input,
+                    },
+                  } as any,
+                })
+              }
+              catch (err) {
+                console.error('[context-bridge] failed to send reply audio:', err)
+              }
+            })()
+          }
         }),
 
         chatOrchestrator.onChatTurnComplete(async (chat, context) => {

@@ -323,7 +323,7 @@ pages:
       description: Playing Factorio!
       title: Factorio
       enable: Enable Factorio Integration
-      enable-description: Allow AIRI to interact with Factorio game
+      enable-description: Allow 米塔 to interact with Factorio game
       server-address: Server Address
       server-address-description: The IP address or hostname of the Factorio server
       server-address-placeholder: Enter server address (e.g., localhost or 192.168.1.100)
@@ -337,7 +337,7 @@ pages:
       description: Playing Minecraft!
       title: Minecraft
       enable: Enable Minecraft Integration
-      enable-description: Allow AIRI to interact with Minecraft game
+      enable-description: Allow 米塔 to interact with Minecraft game
       server-address: Server Address
       server-address-description: The IP address or hostname of the Minecraft server
       server-address-placeholder: Enter server address (e.g., localhost or play.example.com)
@@ -364,11 +364,107 @@ pages:
       description: Chat & voice chat over Discord
       title: Discord
       enable: Enable Discord Integration
-      enable-description: Allow AIRI to interact through Discord
+      enable-description: Allow 米塔 to interact through Discord
       token: Bot Token
       token-description: Your Discord bot token
       token-placeholder: Enter your Discord bot token
       configured: Discord is properly configured!
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: Discord disabled
+        missing-token: Token required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: Discord connected
+        error: Discord error
+      status-detail:
+        disabled: Turn on the integration to start the local Discord bot service.
+        missing-token: Enter a Discord bot token, then enable the integration.
+        idle: Discord has not started yet.
+        syncing: Sending the current Discord settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to validate the token and report back.
+        connecting: Discord is validating the token and starting the bot.
+        ready: Discord bot is listening for messages.
+        error: Discord could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        discord-service: The Discord bot service did not report back. Restart the web or desktop app, or run @proj-airi/discord-bot.
+    messaging-telegram:
+      description: Chat with 米塔 through Telegram, including images and supported video files
+      title: Telegram
+      enable: Enable Telegram Integration
+      enable-description: Allow 米塔 to interact through Telegram
+      token: Bot API Token
+      token-description: Your Telegram bot API token from BotFather
+      token-placeholder: Enter your Telegram bot API token
+      configured: Telegram is properly configured!
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: Telegram disabled
+        missing-token: Token required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: Telegram connected
+        error: Telegram error
+      status-detail:
+        disabled: Turn on the integration to start the local Telegram bot service.
+        missing-token: Enter a BotFather token, then enable the integration.
+        idle: Telegram has not started yet.
+        syncing: Sending the current Telegram settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to validate the token and report back.
+        connecting: Telegram is validating the token and starting the bot.
+        ready: Telegram bot is listening for messages.
+        error: Telegram could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        telegram-service: The Telegram bot service did not report back. Restart the web or desktop app, or run @proj-airi/telegram-bot.
+    messaging-qq:
+      description: Chat with 米塔 through QQ using NapCat
+      title: QQ
+      enable: Enable QQ Integration
+      enable-description: Allow 米塔 to interact through QQ via NapCat
+      ws-url: NapCat WebSocket URL
+      ws-url-description: The WebSocket address of your NapCat instance
+      ws-url-placeholder: 'ws://127.0.0.1:3001'
+      access-token: Access Token
+      access-token-description: Optional access token for NapCat authentication
+      access-token-placeholder: Enter NapCat access token (optional)
+      configured: QQ is properly configured!
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: QQ disabled
+        missing-config: Configuration required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: QQ connected
+        error: QQ error
+      status-detail:
+        disabled: Turn on the integration to start the local QQ bot service.
+        missing-config: Enter the NapCat WebSocket URL, then enable the integration.
+        idle: QQ has not started yet.
+        syncing: Sending the current QQ settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to connect to NapCat and report back.
+        connecting: QQ is connecting to NapCat.
+        ready: QQ bot is listening for messages.
+        error: QQ could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        qq-service: The QQ bot service did not report back. Restart the web or desktop app, or run @proj-airi/qq-bot.
     speech:
       description: Speech synthesis
       sections:
@@ -419,7 +515,7 @@ pages:
       description: X / Twitter browsing and usage
       title: X / Twitter
       enable: Enable X / Twitter Integration
-      enable-description: Allow AIRI to interact with X / Twitter
+      enable-description: Allow 米塔 to interact with X / Twitter
       api-key: API Key
       api-key-description: Your X / Twitter API key
       api-key-placeholder: Enter your X / Twitter API key
@@ -740,6 +836,9 @@ pages:
       openai:
         description: openai.com
         title: OpenAI
+      codex:
+        description: OpenAI Codex
+        title: Codex
       openai-compatible:
         description: OpenAI Compatible
         title: OpenAI Compatible

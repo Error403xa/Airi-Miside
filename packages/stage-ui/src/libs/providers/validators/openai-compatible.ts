@@ -12,8 +12,9 @@ import { isModelProvider } from '../types'
 
 type OpenAICompatibleValidationCheck = 'connectivity' | 'model_list' | 'chat_completions'
 
-interface OpenAICompatibleValidationOptions<TConfig extends { apiKey?: string, baseUrl?: string }> {
+interface OpenAICompatibleValidationOptions<TConfig extends { apiKey?: string | null, baseUrl?: string | URL | null }> {
   checks?: OpenAICompatibleValidationCheck[]
+  resolveValidationModel?: (config: TConfig, provider: ProviderInstance, providerExtra: ProviderExtraMethods<TConfig> | undefined) => Promise<string | undefined> | string | undefined
   additionalHeaders?: Record<string, string>
   schedule?: {
     mode: 'once' | 'interval'
@@ -87,8 +88,12 @@ async function pickValidationModel<TConfig extends { apiKey?: string | null, bas
   config: TConfig,
   provider: ProviderInstance,
   providerExtra: ProviderExtraMethods<TConfig> | undefined,
+  options?: OpenAICompatibleValidationOptions<TConfig>,
 ): Promise<string> {
   const fallback = 'test'
+  const configuredModel = await options?.resolveValidationModel?.(config, provider, providerExtra)
+  if (configuredModel?.trim())
+    return configuredModel.trim()
 
   try {
     const models = await resolveModels(config, provider, providerExtra)
@@ -127,7 +132,7 @@ export function createOpenAICompatibleValidators<TConfig extends { apiKey?: stri
       return existing
 
     if (!cache) {
-      const model = await pickValidationModel(config, provider, providerExtra)
+      const model = await pickValidationModel(config, provider, providerExtra, options)
       try {
         await generateText({
           apiKey: config.apiKey,
@@ -165,7 +170,7 @@ export function createOpenAICompatibleValidators<TConfig extends { apiKey?: stri
         return cached
 
       const sharedCheck = (async () => {
-        const model = await pickValidationModel(config, provider, providerExtra)
+        const model = await pickValidationModel(config, provider, providerExtra, options)
         try {
           await generateText({
             apiKey: config.apiKey,
@@ -305,6 +310,14 @@ export function createOpenAICompatibleValidators<TConfig extends { apiKey?: stri
           const models = await resolveModels(config, provider, providerExtra)
           if (!models || models.length === 0) {
             errors.push({ error: new Error('Model list check failed: no models found') })
+          }
+
+          const configuredModel = await options?.resolveValidationModel?.(config, provider, providerExtra)
+          if (configuredModel?.trim()) {
+            const modelExists = models.some(model => extractModelId(model) === configuredModel.trim())
+            if (!modelExists) {
+              errors.push({ error: new Error(`Model list check failed: configured model "${configuredModel.trim()}" was not found`) })
+            }
           }
         }
         catch (e) {

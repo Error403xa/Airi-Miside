@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
 
-import { onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { useMarkdown } from '../../composables/markdown'
 
@@ -14,34 +14,59 @@ const props = defineProps<Props>()
 
 const processedContent = ref('')
 const { process, processSync } = useMarkdown()
+const hasCodeFence = computed(() => /`{3,}/.test(props.content))
+
+let processVersion = 0
+let processTimer: ReturnType<typeof setTimeout> | undefined
 
 async function processContent() {
+  const version = ++processVersion
+  const content = props.content
+
   if (!props.content) {
     processedContent.value = ''
     return
   }
 
   try {
-    processedContent.value = DOMPurify.sanitize(await process(props.content))
+    const html = hasCodeFence.value
+      ? await process(content)
+      : processSync(content)
+
+    if (version === processVersion)
+      processedContent.value = DOMPurify.sanitize(html)
   }
   catch (error) {
     console.warn('Failed to process markdown with syntax highlighting, using fallback:', error)
-    processedContent.value = DOMPurify.sanitize(processSync(props.content))
+    if (version === processVersion)
+      processedContent.value = DOMPurify.sanitize(processSync(content))
   }
 }
 
+function scheduleProcessContent() {
+  if (processTimer)
+    clearTimeout(processTimer)
+
+  processTimer = setTimeout(processContent, hasCodeFence.value ? 80 : 24)
+}
+
 // Process content when it changes
-watch(() => props.content, processContent, { immediate: true })
+watch(() => props.content, scheduleProcessContent, { immediate: true })
 
 onMounted(() => {
-  processContent()
+  scheduleProcessContent()
+})
+
+onBeforeUnmount(() => {
+  if (processTimer)
+    clearTimeout(processTimer)
 })
 </script>
 
 <template>
   <div
     :class="props.class"
-    class="markdown-content"
+    class="markdown-content max-w-full min-w-0 overflow-hidden"
     v-html="processedContent"
   />
 </template>
@@ -53,6 +78,20 @@ onMounted(() => {
   border-radius: 6px;
   padding: 1rem;
   margin: 0.5rem 0;
+}
+
+.markdown-content :deep(p),
+.markdown-content :deep(li),
+.markdown-content :deep(blockquote),
+.markdown-content :deep(td),
+.markdown-content :deep(th) {
+  overflow-wrap: anywhere;
+}
+
+.markdown-content :deep(table) {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .markdown-content :deep(code) {

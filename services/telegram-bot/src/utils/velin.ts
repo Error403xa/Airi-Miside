@@ -17,11 +17,10 @@ export function importVelin(module: string, base: string): VelinModule {
     render: async (data) => {
       const content = (await readFile(relativeOf(module, base))).toString('utf-8')
 
-      if (isMarkdown(module)) {
-        return renderMarkdownString(content, data)
-      }
-
-      return renderSFCString(content, data)
+      const result = isMarkdown(module)
+        ? await renderMarkdownString(content, data)
+        : await renderSFCString(content, data)
+      return typeof result === 'string' ? result : result.rendered
     },
   }
 }

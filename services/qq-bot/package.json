@@ -1,0 +1,23 @@
+{
+  "name": "@proj-airi/qq-bot",
+  "type": "module",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "tsx --env-file=.env --env-file-if-exists=.env.local src/index.ts",
+    "dev": "tsx watch --env-file=.env --env-file-if-exists=.env.local src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@guiiai/logg": "catalog:",
+    "@proj-airi/server-sdk": "workspace:*",
+    "@proj-airi/server-shared": "workspace:*",
+    "ws": "catalog:"
+  },
+  "devDependencies": {
+    "@types/ws": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "^5.8.3"
+  }
+}

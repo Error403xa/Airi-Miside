@@ -1,4 +1,8 @@
-import { join, resolve } from 'node:path'
+import type { PluginOption } from 'vite'
+
+import { createReadStream } from 'node:fs'
+import { cp, stat } from 'node:fs/promises'
+import { join, relative, resolve } from 'node:path'
 
 import VueI18n from '@intlify/unplugin-vue-i18n/vite'
 import Vue from '@vitejs/plugin-vue'
@@ -18,6 +22,70 @@ import { defineConfig } from 'electron-vite'
 
 const stageUIAssetsRoot = resolve(join(import.meta.dirname, '..', '..', 'packages', 'stage-ui', 'src', 'assets'))
 const sharedCacheDir = resolve(join(import.meta.dirname, '..', '..', '.cache'))
+
+function getAssetContentType(path: string) {
+  if (path.endsWith('.json'))
+    return 'application/json; charset=utf-8'
+  if (path.endsWith('.png'))
+    return 'image/png'
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg'))
+    return 'image/jpeg'
+  if (path.endsWith('.webp'))
+    return 'image/webp'
+  if (path.endsWith('.zip'))
+    return 'application/zip'
+
+  return 'application/octet-stream'
+}
+
+function StageUIAssets(): PluginOption {
+  let outDir = ''
+
+  return {
+    name: 'proj-airi:stage-ui-assets',
+    configResolved(config) {
+      outDir = config.build.outDir
+    },
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url)
+          return next()
+
+        const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname)
+        if (!pathname.startsWith('/assets/'))
+          return next()
+
+        const assetPath = resolve(stageUIAssetsRoot, pathname.slice('/assets/'.length))
+        const relativeAssetPath = relative(stageUIAssetsRoot, assetPath)
+        if (relativeAssetPath.startsWith('..') || resolve(stageUIAssetsRoot, relativeAssetPath) !== assetPath) {
+          res.statusCode = 403
+          res.end('Forbidden')
+          return
+        }
+
+        try {
+          const assetStat = await stat(assetPath)
+          if (!assetStat.isFile())
+            return next()
+
+          res.setHeader('Content-Type', getAssetContentType(assetPath))
+          createReadStream(assetPath)
+            .on('error', next)
+            .pipe(res)
+        }
+        catch (error) {
+          if (error instanceof Error && 'code' in error && error.code === 'ENOENT')
+            return next()
+
+          return next(error)
+        }
+      })
+    },
+    async writeBundle() {
+      await cp(stageUIAssetsRoot, resolve(outDir, 'assets'), { recursive: true })
+    },
+  }
+}
 
 export default defineConfig({
   main: {
@@ -205,6 +273,8 @@ export default defineConfig({
         compositionOnly: true,
         fullInstall: true,
       }),
+
+      StageUIAssets(),
 
       DownloadLive2DSDK(),
       Download('https://dist.ayaka.moe/live2d-models/hiyori_free_zh.zip', 'hiyori_free_zh.zip', 'live2d/models', { parentDir: stageUIAssetsRoot, cacheDir: sharedCacheDir }),

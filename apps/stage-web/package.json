@@ -11,9 +11,10 @@
   "license": "MIT",
   "scripts": {
     "build": "vite build",
-    "dev": "vite --host",
+    "dev": "tsx scripts/serve-with-messaging-bots.ts dev",
     "lint": "eslint .",
     "preview": "vite preview",
+    "start": "tsx scripts/serve-with-messaging-bots.ts start",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {

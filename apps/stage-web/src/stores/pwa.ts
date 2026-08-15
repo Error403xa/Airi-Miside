@@ -15,6 +15,15 @@ export const usePWAStore = defineStore('pwa', () => {
     if (import.meta.env.SSR) {
       return
     }
+    if (isEnvTruthy(import.meta.env.VITE_AIRI_DISABLE_PWA)) {
+      await navigator.serviceWorker?.getRegistrations?.().then(registrations =>
+        Promise.all(registrations.map(registration => registration.unregister())),
+      )
+      await globalThis.caches?.keys?.().then(cacheNames =>
+        Promise.all(cacheNames.map(cacheName => globalThis.caches.delete(cacheName))),
+      )
+      return
+    }
     if (isEnvTruthy(import.meta.env.VITE_APP_TARGET_HUGGINGFACE_SPACE)) {
       return
     }

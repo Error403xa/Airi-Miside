@@ -1,0 +1,21 @@
+{
+  "name": "open-autoglm-main",
+  "version": "1.0.0",
+  "description": "[Readme in English](README_en.md)",
+  "directories": {
+    "example": "examples"
+  },
+  "author": "",
+  "license": "ISC",
+  "keywords": [],
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@yume-chan/adb": "^2.5.1",
+    "@yume-chan/adb-credential-web": "^2.1.0",
+    "@yume-chan/adb-daemon-webusb": "^2.3.2",
+    "esbuild": "^0.27.2"
+  }
+}

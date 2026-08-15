@@ -19,8 +19,10 @@ import { createGlobalAppConfig } from './configs/global'
 import { emitAppBeforeQuit, emitAppReady, emitAppWindowAllClosed } from './libs/bootkit/lifecycle'
 import { setElectronMainDirname } from './libs/electron/location'
 import { createI18n } from './libs/i18n'
+import { createAutoGLMService, setupAutoGLMRuntime } from './services/airi/autoglm'
 import { setupServerChannel } from './services/airi/channel-server'
 import { setupMcpStdioManager } from './services/airi/mcp-servers'
+import { setupMessagingBots } from './services/airi/messaging-bots'
 import { setupPluginHost } from './services/airi/plugins'
 import { setupAutoUpdater } from './services/electron/auto-updater'
 import { setupTray } from './tray'
@@ -94,8 +96,20 @@ app.whenReady().then(async () => {
     build: async () => setupServerChannel(),
   })
 
+  const autoGLMRuntime = setupAutoGLMRuntime()
+  createAutoGLMService({ autoGLM: autoGLMRuntime })
+
+  const autoGLM = injeca.provide('modules:autoglm', {
+    build: () => autoGLMRuntime,
+  })
+
   const mcpStdioManager = injeca.provide('modules:mcp-stdio-manager', {
     build: async () => setupMcpStdioManager(),
+  })
+
+  const messagingBots = injeca.provide('modules:messaging-bots', {
+    dependsOn: { serverChannel },
+    build: async () => setupMessagingBots(),
   })
 
   const pluginHost = injeca.provide('modules:plugin-host', {
@@ -148,7 +162,7 @@ app.whenReady().then(async () => {
   })
 
   injeca.invoke({
-    dependsOn: { mainWindow, tray, serverChannel, pluginHost, mcpStdioManager },
+    dependsOn: { mainWindow, tray, serverChannel, pluginHost, mcpStdioManager, messagingBots, autoGLM },
     callback: noop,
   })
 

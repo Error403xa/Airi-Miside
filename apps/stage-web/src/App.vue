@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { OnboardingDialog, ToasterRoot } from '@proj-airi/stage-ui/components'
 import { useSharedAnalyticsStore } from '@proj-airi/stage-ui/stores/analytics'
+import { useAutoGLMStore } from '@proj-airi/stage-ui/stores/autoglm'
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
 import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
 import { useDisplayModelsStore } from '@proj-airi/stage-ui/stores/display-models'
 import { useModsServerChannelStore } from '@proj-airi/stage-ui/stores/mods/api/channel-server'
 import { useContextBridgeStore } from '@proj-airi/stage-ui/stores/mods/api/context-bridge'
 import { useAiriCardStore } from '@proj-airi/stage-ui/stores/modules/airi-card'
+import { useDiscordStore } from '@proj-airi/stage-ui/stores/modules/discord'
+import { useTelegramStore } from '@proj-airi/stage-ui/stores/modules/telegram'
 import { useOnboardingStore } from '@proj-airi/stage-ui/stores/onboarding'
 import { useSettings } from '@proj-airi/stage-ui/stores/settings'
 import { useTheme } from '@proj-airi/ui'
@@ -35,7 +38,10 @@ const characterOrchestratorStore = useCharacterOrchestratorStore()
 const { shouldShowSetup } = storeToRefs(onboardingStore)
 const { isDark } = useTheme()
 const cardStore = useAiriCardStore()
+const discordStore = useDiscordStore()
+const telegramStore = useTelegramStore()
 const analyticsStore = useSharedAnalyticsStore()
+const autoGLM = useAutoGLMStore()
 
 const primaryColor = computed(() => {
   return isDark.value
@@ -79,7 +85,10 @@ onMounted(async () => {
   onboardingStore.initializeSetupCheck()
 
   await chatSessionStore.initialize()
-  await serverChannelStore.initialize({ possibleEvents: ['ui:configure'] }).catch(err => console.error('Failed to initialize Mods Server Channel in App.vue:', err))
+  await serverChannelStore.initialize({ possibleEvents: ['ui:configure', 'module:status'] }).catch(err => console.error('Failed to initialize Mods Server Channel in App.vue:', err))
+  discordStore.startBackendSync()
+  telegramStore.startBackendSync()
+  await autoGLM.initializeRuntime().catch(err => console.error('Failed to initialize AutoGLM runtime in App.vue:', err))
   await contextBridgeStore.initialize()
   characterOrchestratorStore.initialize()
 
@@ -89,6 +98,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   contextBridgeStore.dispose()
+  discordStore.stopBackendSync()
+  telegramStore.stopBackendSync()
 })
 
 // Handle first-time setup events

@@ -8,6 +8,7 @@ import { useI18n } from 'vue-i18n'
 
 import SystemPromptV2 from '../../constants/prompts/system-v2'
 
+import { MITA_CARD, MITA_CARD_ID } from '../../constants/mita-card'
 import { useConsciousnessStore } from './consciousness'
 import { useSpeechStore } from './speech'
 
@@ -60,7 +61,7 @@ export const useAiriCardStore = defineStore('airi-card', () => {
   const { t } = useI18n()
 
   const cards = useLocalStorageManualReset<Map<string, AiriCard>>('airi-cards', new Map())
-  const activeCardId = useLocalStorageManualReset<string>('airi-card-active-id', 'default')
+  const activeCardId = useLocalStorageManualReset<string>('airi-card-active-id', MITA_CARD_ID)
 
   const activeCard = computed(() => cards.value.get(activeCardId.value))
 
@@ -205,18 +206,23 @@ export const useAiriCardStore = defineStore('airi-card', () => {
   }
 
   function initialize() {
-    if (cards.value.has('default'))
-      return
-    cards.value.set('default', newAiriCard({
-      name: 'ReLU',
-      version: '1.0.0',
-      description: SystemPromptV2(
-        t('base.prompt.prefix'),
-        t('base.prompt.suffix'),
-      ).content,
-    }))
-    if (!activeCardId.value)
-      activeCardId.value = 'default'
+    if (!cards.value.has('default')) {
+      cards.value.set('default', newAiriCard({
+        name: 'ReLU',
+        version: '1.0.0',
+        description: SystemPromptV2(
+          t('base.prompt.prefix'),
+          t('base.prompt.suffix'),
+        ).content,
+      }))
+    }
+
+    const shouldMigrateFromReLU = !cards.value.has(MITA_CARD_ID) && activeCardId.value === 'default'
+    if (!cards.value.has(MITA_CARD_ID))
+      cards.value.set(MITA_CARD_ID, newAiriCard(MITA_CARD))
+
+    if (shouldMigrateFromReLU || !activeCardId.value || !cards.value.has(activeCardId.value))
+      activeCardId.value = MITA_CARD_ID
   }
 
   watch(activeCard, (newCard: AiriCard | undefined) => {

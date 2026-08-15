@@ -129,12 +129,18 @@ catalogs:
     async-mutex:
       specifier: 0.5.0
       version: 0.5.0
+    awilix:
+      specifier: ^12.1.1
+      version: 12.1.1
     better-auth:
       specifier: ^1.4.19
       version: 1.5.3
     builder-util-runtime:
       specifier: ^9.5.1
       version: 9.5.1
+    canvas:
+      specifier: ^3.2.1
+      version: 3.2.1
     crossws:
       specifier: ^0.4.4
       version: 0.4.4
@@ -148,8 +154,11 @@ catalogs:
       specifier: ^9.0.0-rc01
       version: 9.0.0-rc01
     es-toolkit:
-      specifier: 1.43.0
-      version: 1.43.0
+      specifier: ^1.44.0
+      version: 1.44.0
+    eventemitter3:
+      specifier: ^5.0.4
+      version: 5.0.4
     histoire:
       specifier: 1.0.0-beta.1
       version: 1.0.0-beta.1
@@ -165,9 +174,36 @@ catalogs:
     is-network-error:
       specifier: ^1.3.0
       version: 1.3.0
+    isolated-vm:
+      specifier: ^5.0.3
+      version: 5.0.4
     knip:
       specifier: ^5.85.0
       version: 5.85.0
+    minecraft-data:
+      specifier: 3.102.3
+      version: 3.102.3
+    mineflayer:
+      specifier: ^4.33.0
+      version: 4.33.0
+    mineflayer-armor-manager:
+      specifier: ^2.0.1
+      version: 2.0.1
+    mineflayer-auto-eat:
+      specifier: ^5.0.3
+      version: 5.0.3
+    mineflayer-collectblock:
+      specifier: ^1.6.0
+      version: 1.6.0
+    mineflayer-pathfinder:
+      specifier: ^2.4.5
+      version: 2.4.5
+    mineflayer-pvp:
+      specifier: ^1.3.2
+      version: 1.3.2
+    mineflayer-tool:
+      specifier: ^1.2.0
+      version: 1.2.0
     mkcert:
       specifier: ^3.2.0
       version: 3.2.0
@@ -186,6 +222,24 @@ catalogs:
     posthog-js:
       specifier: 1.306.1
       version: 1.306.1
+    prismarine-block:
+      specifier: ^1.22.0
+      version: 1.22.0
+    prismarine-entity:
+      specifier: ^2.5.0
+      version: 2.5.0
+    prismarine-item:
+      specifier: ^1.17.0
+      version: 1.17.0
+    prismarine-recipe:
+      specifier: ^1.3.1
+      version: 1.3.1
+    prismarine-viewer:
+      specifier: ^1.33.0
+      version: 1.33.0
+    prismarine-windows:
+      specifier: ^2.9.0
+      version: 2.9.0
     splitpanes:
       specifier: ^4.0.4
       version: 4.0.4
@@ -211,8 +265,11 @@ catalogs:
       specifier: ^1.17.4
       version: 1.17.4
     valibot:
-      specifier: 1.2.0
+      specifier: ^1.2.0
       version: 1.2.0
+    vec3:
+      specifier: ^0.1.10
+      version: 0.1.10
     vite:
       specifier: ^8.0.0-beta.15
       version: 8.0.0-beta.15
@@ -237,6 +294,9 @@ catalogs:
     zod:
       specifier: ^4.3.6
       version: 4.3.6
+    zod-to-json-schema:
+      specifier: ^3.25.1
+      version: 3.25.1
   vitest:
     '@vitest/browser-playwright':
       specifier: ^4.0.18
@@ -1903,7 +1963,7 @@ importers:
         version: 1.109.0
       es-toolkit:
         specifier: 'catalog:'
-        version: 1.43.0
+        version: 1.44.0
       injeca:
         specifier: 'catalog:'
         version: 0.1.7(@guiiai/logg@1.2.11)(error-stack-parser@2.1.4)(nanoid@5.1.6)
@@ -2029,7 +2089,7 @@ importers:
         version: 40.6.1
       es-toolkit:
         specifier: 'catalog:'
-        version: 1.43.0
+        version: 1.44.0
       std-env:
         specifier: 'catalog:'
         version: 4.0.0-rc.1
@@ -2091,7 +2151,7 @@ importers:
         version: 3.5.0(three@0.183.1)
       es-toolkit:
         specifier: 'catalog:'
-        version: 1.43.0
+        version: 1.44.0
       three:
         specifier: ^0.183.1
         version: 0.183.1
@@ -2585,7 +2645,7 @@ importers:
         version: 3.3.1
       es-toolkit:
         specifier: 'catalog:'
-        version: 1.43.0
+        version: 1.44.0
       gpuu:
         specifier: ^1.0.6
         version: 1.0.6
@@ -2877,7 +2937,7 @@ importers:
         version: 4.0.2
       es-toolkit:
         specifier: 'catalog:'
-        version: 1.43.0
+        version: 1.44.0
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -2941,7 +3001,7 @@ importers:
         version: 4.0.2
       es-toolkit:
         specifier: 'catalog:'
-        version: 1.43.0
+        version: 1.44.0
       pinia:
         specifier: ^3.0.4
         version: 3.0.4(typescript@5.9.3)(vue@3.5.29(typescript@5.9.3))
@@ -3202,7 +3262,7 @@ importers:
         version: 14.1.0(vue@3.5.29(typescript@5.9.3))
       '@wxt-dev/module-vue':
         specifier: ^1.0.3
-        version: 1.0.3(vite@7.3.1(@types/node@24.10.14)(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.29(typescript@5.9.3))(wxt@0.20.18(@types/node@24.10.14)(canvas@3.2.1)(eslint@9.39.3(jiti@2.6.1))(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(rollup@4.59.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
+        version: 1.0.3(vite@8.0.0-beta.15(@types/node@24.10.14)(esbuild@0.27.2)(jiti@2.6.1)(less@4.5.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.29(typescript@5.9.3))(wxt@0.20.18(@types/node@24.10.14)(canvas@3.2.1)(eslint@9.39.3(jiti@2.6.1))(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(rollup@4.59.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))
       nanoid:
         specifier: ^5.1.6
         version: 5.1.6
@@ -3282,8 +3342,8 @@ importers:
         specifier: 'catalog:'
         version: 0.1.0-beta.14
       '@proj-airi/server-sdk':
-        specifier: ^0.8.4
-        version: 0.8.4(srvx@0.11.8)
+        specifier: workspace:*
+        version: link:../../packages/server-sdk
       '@xsai/generate-text':
         specifier: 'catalog:'
         version: 0.4.3
@@ -3291,73 +3351,76 @@ importers:
         specifier: 'catalog:'
         version: 0.4.0-beta.13
       alien-signals:
-        specifier: ^3.1.2
+        specifier: 'catalog:'
         version: 3.1.2
       awilix:
-        specifier: ^12.1.1
+        specifier: 'catalog:'
         version: 12.1.1
       canvas:
-        specifier: ^3.2.1
+        specifier: 'catalog:'
         version: 3.2.1
       crossws:
         specifier: 'catalog:'
         version: 0.4.4(srvx@0.11.8)
       es-toolkit:
-        specifier: ^1.44.0
+        specifier: 'catalog:'
         version: 1.44.0
       eventemitter3:
-        specifier: ^5.0.4
+        specifier: 'catalog:'
+        version: 5.0.4
+      isolated-vm:
+        specifier: 'catalog:'
         version: 5.0.4
       minecraft-data:
-        specifier: 3.102.3
+        specifier: 'catalog:'
         version: 3.102.3
       mineflayer:
-        specifier: ^4.33.0
+        specifier: 'catalog:'
         version: 4.33.0(patch_hash=03a5a80439dece74f880cf754f7317b3c9e4c5dbc6488eba67c36ab4fbfbea3a)(encoding@0.1.13)
       mineflayer-armor-manager:
-        specifier: ^2.0.1
+        specifier: 'catalog:'
         version: 2.0.1(mineflayer@4.33.0(patch_hash=03a5a80439dece74f880cf754f7317b3c9e4c5dbc6488eba67c36ab4fbfbea3a)(encoding@0.1.13))
       mineflayer-auto-eat:
-        specifier: ^5.0.3
+        specifier: 'catalog:'
         version: 5.0.3(encoding@0.1.13)
       mineflayer-collectblock:
-        specifier: ^1.6.0
+        specifier: 'catalog:'
         version: 1.6.0(encoding@0.1.13)
       mineflayer-pathfinder:
-        specifier: ^2.4.5
+        specifier: 'catalog:'
         version: 2.4.5(patch_hash=4bbfdca823ab48b74086e6e7d4b2f9baf5ee7c0ba9aee0c279b3c91c50bfd797)
       mineflayer-pvp:
-        specifier: ^1.3.2
+        specifier: 'catalog:'
         version: 1.3.2(encoding@0.1.13)(prismarine-registry@1.11.0)
       mineflayer-tool:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0(encoding@0.1.13)
       nanoid:
         specifier: 'catalog:'
         version: 5.1.6
       prismarine-block:
-        specifier: ^1.22.0
+        specifier: 'catalog:'
         version: 1.22.0
       prismarine-entity:
-        specifier: ^2.5.0
+        specifier: 'catalog:'
         version: 2.5.0
       prismarine-item:
-        specifier: ^1.17.0
+        specifier: 'catalog:'
         version: 1.17.0
       prismarine-recipe:
-        specifier: ^1.3.1
+        specifier: 'catalog:'
         version: 1.3.1(prismarine-registry@1.11.0)
       prismarine-viewer:
-        specifier: ^1.33.0
+        specifier: 'catalog:'
         version: 1.33.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       prismarine-windows:
-        specifier: ^2.9.0
+        specifier: 'catalog:'
         version: 2.9.0
       valibot:
-        specifier: ^1.2.0
+        specifier: 'catalog:'
         version: 1.2.0(typescript@5.9.3)
       vec3:
-        specifier: ^0.1.10
+        specifier: 'catalog:'
         version: 0.1.10
       ws:
         specifier: 'catalog:'
@@ -3366,15 +3429,40 @@ importers:
         specifier: 'catalog:'
         version: 2.8.2
       zod:
-        specifier: ^4.3.6
+        specifier: 'catalog:'
         version: 4.3.6
       zod-to-json-schema:
-        specifier: ^3.25.1
+        specifier: 'catalog:'
         version: 3.25.1(zod@4.3.6)
     devDependencies:
       '@types/ws':
         specifier: 'catalog:'
         version: 8.18.1
+
+  services/qq-bot:
+    dependencies:
+      '@guiiai/logg':
+        specifier: 'catalog:'
+        version: 1.2.11
+      '@proj-airi/server-sdk':
+        specifier: workspace:*
+        version: link:../../packages/server-sdk
+      '@proj-airi/server-shared':
+        specifier: workspace:*
+        version: link:../../packages/server-shared
+      ws:
+        specifier: 'catalog:'
+        version: 8.19.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    devDependencies:
+      '@types/ws':
+        specifier: 'catalog:'
+        version: 8.18.1
+      tsx:
+        specifier: 'catalog:'
+        version: 4.21.0
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
 
   services/satori-bot:
     dependencies:
@@ -3484,6 +3572,12 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.40.0
         version: 1.40.0
+      '@proj-airi/server-sdk':
+        specifier: workspace:^
+        version: link:../../packages/server-sdk
+      '@proj-airi/server-shared':
+        specifier: workspace:^
+        version: link:../../packages/server-shared
       '@velin-dev/core':
         specifier: ^0.3.4
         version: 0.3.4(typescript@5.9.3)
@@ -11464,9 +11558,6 @@ packages:
     resolution: {integrity: sha512-j6vWzfrGVfyXxge+O0x5sh6cvxAog0a/4Rdd2K36zCMV5eJ+/+tOAngRO8cODMNWbVRdVlmGZQL2YS3yR8bIUA==}
     engines: {node: '>= 0.4'}
 
-  es-toolkit@1.43.0:
-    resolution: {integrity: sha512-SKCT8AsWvYzBBuUqMk4NPwFlSdqLpJwmy6AP322ERn8W2YLIB6JBXnwMI2Qsh2gfphT3q7EKAxKb23cvFHFwKA==}
-
   es-toolkit@1.44.0:
     resolution: {integrity: sha512-6penXeZalaV88MM3cGkFZZfOoLGWshWWfdy0tWw/RlVVyhvMaWSBTOvXNeiW3e5FwdS5ePW0LGEu17zT139ktg==}
 
@@ -12891,6 +12982,10 @@ packages:
   isobject@3.0.1:
     resolution: {integrity: sha512-WhB9zCku7EGTj/HQQRz5aUQEUeoQZH2bWcltRErOpymJ4boYE6wL9Tbr23krRPSZ+C5zqNSrSw+Cc7sZZ4b7vg==}
     engines: {node: '>=0.10.0'}
+
+  isolated-vm@5.0.4:
+    resolution: {integrity: sha512-RYUf/JC4ldWz/oi2BVs8a1XIprQ71q6eQPBwySaF5Apu0KMyf2gIpElbCyPh2OEmRT+FYw1GOKSdkv7jw2KLxw==}
+    engines: {node: '>=18.0.0'}
 
   isomorphic-fetch@3.0.0:
     resolution: {integrity: sha512-qvUtwJ3j6qwsF3jLxkZ72qCgjMysPzDfeV240JHiGZsANBYd+EEuu35v7dfrJ9Up0Ak07D7GGSkGhCHTqg/5wA==}
@@ -24078,9 +24173,9 @@ snapshots:
       '@types/filesystem': 0.0.36
       '@types/har-format': 1.2.16
 
-  '@wxt-dev/module-vue@1.0.3(vite@7.3.1(@types/node@24.10.14)(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.29(typescript@5.9.3))(wxt@0.20.18(@types/node@24.10.14)(canvas@3.2.1)(eslint@9.39.3(jiti@2.6.1))(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(rollup@4.59.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))':
+  '@wxt-dev/module-vue@1.0.3(vite@8.0.0-beta.15(@types/node@24.10.14)(esbuild@0.27.2)(jiti@2.6.1)(less@4.5.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.29(typescript@5.9.3))(wxt@0.20.18(@types/node@24.10.14)(canvas@3.2.1)(eslint@9.39.3(jiti@2.6.1))(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(rollup@4.59.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))':
     dependencies:
-      '@vitejs/plugin-vue': 6.0.4(vite@7.3.1(@types/node@24.10.14)(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.29(typescript@5.9.3))
+      '@vitejs/plugin-vue': 6.0.4(vite@8.0.0-beta.15(@types/node@24.10.14)(esbuild@0.27.2)(jiti@2.6.1)(less@4.5.1)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2))(vue@3.5.29(typescript@5.9.3))
       wxt: 0.20.18(@types/node@24.10.14)(canvas@3.2.1)(eslint@9.39.3(jiti@2.6.1))(jiti@2.6.1)(less@4.5.1)(lightningcss@1.31.1)(rollup@4.59.0)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
     transitivePeerDependencies:
       - vite
@@ -25811,8 +25906,6 @@ snapshots:
       get-intrinsic: 1.3.0
       has-tostringtag: 1.0.2
       hasown: 2.0.2
-
-  es-toolkit@1.43.0: {}
 
   es-toolkit@1.44.0: {}
 
@@ -27622,6 +27715,10 @@ snapshots:
   isexe@3.1.1: {}
 
   isobject@3.0.1: {}
+
+  isolated-vm@5.0.4:
+    dependencies:
+      prebuild-install: 7.1.3
 
   isomorphic-fetch@3.0.0(encoding@0.1.13):
     dependencies:

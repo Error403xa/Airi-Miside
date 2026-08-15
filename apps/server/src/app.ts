@@ -18,9 +18,11 @@ import { sessionMiddleware } from './middlewares/auth'
 import { otelMiddleware } from './middlewares/otel'
 import { createCharacterRoutes } from './routes/characters'
 import { createChatRoutes } from './routes/chats'
+import { createModuleConfigRoutes } from './routes/module-configs'
 import { createProviderRoutes } from './routes/providers'
 import { createCharacterService } from './services/characters'
 import { createChatService } from './services/chats'
+import { createModuleConfigService } from './services/module-configs'
 import { createProviderService } from './services/providers'
 import { ApiError, createInternalError } from './utils/error'
 import { getTrustedOrigin } from './utils/origin'
@@ -28,6 +30,7 @@ import { getTrustedOrigin } from './utils/origin'
 type AuthService = ReturnType<typeof createAuth>
 type CharacterService = ReturnType<typeof createCharacterService>
 type ChatService = ReturnType<typeof createChatService>
+type ModuleConfigService = ReturnType<typeof createModuleConfigService>
 type ProviderService = ReturnType<typeof createProviderService>
 
 type OtelMetrics = ReturnType<typeof initOtel>
@@ -36,11 +39,12 @@ interface AppDeps {
   auth: AuthService
   characterService: CharacterService
   chatService: ChatService
+  moduleConfigService: ModuleConfigService
   providerService: ProviderService
   otel: OtelMetrics | null
 }
 
-function buildApp({ auth, characterService, chatService, providerService, otel }: AppDeps) {
+function buildApp({ auth, characterService, chatService, moduleConfigService, providerService, otel }: AppDeps) {
   const logger = useLogger('app').useGlobalConfig()
 
   const app = new Hono<HonoEnv>()
@@ -104,6 +108,8 @@ function buildApp({ auth, characterService, chatService, providerService, otel }
      * Chat routes are handled by the chat service.
      */
     .route('/api/chats', createChatRoutes(chatService))
+
+    .route('/api/module-configs', createModuleConfigRoutes(moduleConfigService))
 }
 
 export type AppType = ReturnType<typeof buildApp>
@@ -158,12 +164,18 @@ async function createApp() {
     build: ({ dependsOn }) => createChatService(dependsOn.db),
   })
 
+  const moduleConfigService = injeca.provide('services:module-configs', {
+    dependsOn: { db },
+    build: ({ dependsOn }) => createModuleConfigService(dependsOn.db),
+  })
+
   await injeca.start()
-  const resolved = await injeca.resolve({ auth, characterService, chatService, providerService, otel })
+  const resolved = await injeca.resolve({ auth, characterService, chatService, moduleConfigService, providerService, otel })
   const app = buildApp({
     auth: resolved.auth,
     characterService: resolved.characterService,
     chatService: resolved.chatService,
+    moduleConfigService: resolved.moduleConfigService,
     providerService: resolved.providerService,
     otel: resolved.otel,
   })

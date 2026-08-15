@@ -15,6 +15,28 @@ export interface Discord {
   channelId?: string
 }
 
+export interface TelegramUser {
+  id: string
+  displayName: string
+  username?: string
+}
+
+export interface Telegram {
+  chatId: string
+  messageId?: number
+  chatTitle?: string
+  user?: TelegramUser
+}
+
+export interface QQ {
+  messageType: 'private' | 'group'
+  userId: number
+  groupId?: number
+  nickname: string
+  card?: string
+  selfId: number
+}
+
 export interface PluginIdentity {
   /**
    * Stable plugin identifier (shared across instances).
@@ -379,6 +401,8 @@ interface InputSource {
   'stage-web': boolean
   'stage-tamagotchi': boolean
   'discord': Discord
+  'telegram': Telegram
+  'qq': QQ
 }
 
 interface OutputSource {
@@ -441,11 +465,19 @@ export type InputContextUpdate
 export interface WebSocketEventInputTextBase {
   text: string
   textRaw?: string
+  attachments?: InputAttachment[]
   overrides?: InputMessageOverrides
   contextUpdates?: InputContextUpdate[]
 }
 
-export type WebSocketEventInputText = WebSocketEventInputTextBase & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord'>>
+export interface InputAttachment {
+  type: 'image' | 'file'
+  data: string
+  mimeType: string
+  filename?: string
+}
+
+export type WebSocketEventInputText = WebSocketEventInputTextBase & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord' | 'telegram' | 'qq'>>
 
 export interface WebSocketEventInputTextVoiceBase {
   transcription: string
@@ -454,7 +486,7 @@ export interface WebSocketEventInputTextVoiceBase {
   contextUpdates?: InputContextUpdate[]
 }
 
-export type WebSocketEventInputTextVoice = WebSocketEventInputTextVoiceBase & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord'>>
+export type WebSocketEventInputTextVoice = WebSocketEventInputTextVoiceBase & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord' | 'qq'>>
 
 export interface WebSocketEventInputVoiceBase {
   audio: ArrayBuffer
@@ -462,7 +494,7 @@ export interface WebSocketEventInputVoiceBase {
   contextUpdates?: InputContextUpdate[]
 }
 
-export type WebSocketEventInputVoice = WebSocketEventInputVoiceBase & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord'>>
+export type WebSocketEventInputVoice = WebSocketEventInputVoiceBase & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord' | 'qq'>>
 
 export type InputEventData = WebSocketEventInputText | WebSocketEventInputTextVoice | WebSocketEventInputVoice
 
@@ -537,6 +569,7 @@ interface ErrorEvent {
 
 interface ModuleAnnounceEvent<C = undefined> {
   name: string
+  index?: number
   identity: ModuleIdentity
   possibleEvents: Array<(keyof ProtocolEvents<C>)>
   configSchema?: ModuleConfigSchema
@@ -560,6 +593,7 @@ interface ModuleStatusEvent {
   phase: ModulePhase
   reason?: string
   details?: Record<string, unknown>
+  index?: number
 }
 
 interface ModuleConfigurationValidateRequestEvent<C = undefined> {
@@ -709,6 +743,7 @@ interface ModuleStatusChangeEvent {
 }
 
 interface ModuleConfigureEvent<C = undefined> {
+  index?: number
   config: C | Record<string, unknown>
 }
 
@@ -720,11 +755,11 @@ interface UiConfigureEvent<C = undefined> {
 
 type OutputGenAiChatToolCallEvent = {
   toolCalls: ToolMessage[]
-} & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord'>> & Partial<WithOutputSource<'gen-ai:chat'>>
+} & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord' | 'telegram'>> & Partial<WithOutputSource<'gen-ai:chat'>>
 
 type OutputGenAiChatMessageEvent = {
   message: AssistantMessage
-} & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord'>> & Partial<WithOutputSource<'gen-ai:chat'>>
+} & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord' | 'telegram'>> & Partial<WithOutputSource<'gen-ai:chat'>>
 
 interface OutputGenAiChatUsage {
   promptTokens: number
@@ -738,6 +773,19 @@ type OutputGenAiChatCompleteEvent = {
   toolCalls: ToolMessage[]
   usage: OutputGenAiChatUsage
 } & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord'>> & Partial<WithOutputSource<'gen-ai:chat'>>
+
+type OutputGenAiSpeechAudioEvent = {
+  /**
+   * Base64-encoded synthesized audio (e.g. mp3 from the official TTS gateway).
+   * Sent as a string rather than raw ArrayBuffer so it survives WebSocket /
+   * superjson round-tripping intact on the bot side.
+   */
+  audioBase64: string
+  /** MIME type of the decoded audio payload, e.g. 'audio/mpeg'. */
+  mimeType: string
+  /** Optional transcript of the spoken text, for logging / fallback. */
+  transcript?: string
+} & Partial<WithInputSource<'stage-web' | 'stage-tamagotchi' | 'discord' | 'telegram' | 'qq'>> & Partial<WithOutputSource<'gen-ai:chat'>>
 
 interface SparkNotifyEvent {
   id: string
@@ -862,6 +910,7 @@ export const inputVoice = defineEventa<WebSocketEventInputVoice>('input:voice')
 export const outputGenAiChatToolCall = defineEventa<OutputGenAiChatToolCallEvent>('output:gen-ai:chat:tool-call')
 export const outputGenAiChatMessage = defineEventa<OutputGenAiChatMessageEvent>('output:gen-ai:chat:message')
 export const outputGenAiChatComplete = defineEventa<OutputGenAiChatCompleteEvent>('output:gen-ai:chat:complete')
+export const outputGenAiSpeechAudio = defineEventa<OutputGenAiSpeechAudioEvent>('output:gen-ai:speech:audio')
 
 export const sparkNotify = defineEventa<SparkNotifyEvent>('spark:notify')
 export const sparkEmit = defineEventa<SparkEmitEvent>('spark:emit')
@@ -983,6 +1032,7 @@ export interface ProtocolEvents<C = undefined> {
   'output:gen-ai:chat:tool-call': OutputGenAiChatToolCallEvent
   'output:gen-ai:chat:message': OutputGenAiChatMessageEvent
   'output:gen-ai:chat:complete': OutputGenAiChatCompleteEvent
+  'output:gen-ai:speech:audio': OutputGenAiSpeechAudioEvent
 
   /**
    * Spark used for allowing agents in a network to raise an event toward the other destinations (e.g. character).

@@ -1,6 +1,7 @@
 import type { MineflayerPlugin } from '../libs/mineflayer'
 import type { CognitiveEngineOptions, MineflayerWithAgents } from './types'
 
+import { config } from '../composables/config'
 import { DebugService } from '../debug'
 import { McpReplServer } from '../debug/mcp-repl-server'
 import { ChatMessageHandler } from '../libs/mineflayer'
@@ -12,21 +13,26 @@ export function CognitiveEngine(options: CognitiveEngineOptions): MineflayerPlug
   let mcpReplServer: McpReplServer | null = null
   let started = false
 
-  // Keep airiClient reference for future use
-  void options.airiClient
-
   return {
     async created(bot) {
       // Create container and get required services
-      container = createAgentContainer()
+      container = createAgentContainer(options.airiClient)
 
       const perceptionPipeline = container.resolve('perceptionPipeline')
       const brain = container.resolve('brain')
       const reflexManager = container.resolve('reflexManager')
       const taskExecutor = container.resolve('taskExecutor')
+      const airiBridge = container.resolve('airiBridge')
+      const minecraftContextService = container.resolve('minecraftContextService')
       const debugService = DebugService.getInstance()
-      mcpReplServer = new McpReplServer(brain)
-      mcpReplServer.start()
+
+      airiBridge.init()
+      minecraftContextService.init()
+
+      if (config.debug.mcp) {
+        mcpReplServer = new McpReplServer(brain)
+        mcpReplServer.start()
+      }
 
       debugService.onCommand('request_repl_state', () => {
         debugService.emit('debug:repl_state', brain.getReplState())
@@ -81,11 +87,8 @@ export function CognitiveEngine(options: CognitiveEngineOptions): MineflayerPlug
         // Initialize perception pipeline (raw events + detectors)
         perceptionPipeline.init(botWithAgents)
 
-        let tickCount = 0
         bot.onTick('tick', () => {
-          tickCount++
-          if (tickCount % 5 !== 0)
-            return
+          // Empty listener
         })
 
         // Resolve EventBus for message handling
@@ -99,8 +102,10 @@ export function CognitiveEngine(options: CognitiveEngineOptions): MineflayerPlug
         // Set message handling via EventBus
         const chatHandler = new ChatMessageHandler(bot.username)
         bot.bot.on('chat', (username, message) => {
-          if (chatHandler.isBotMessage(username))
+          if (chatHandler.isBotMessage(username)) {
+            // The bot's own chat line — it must not react to its own messages.
             return
+          }
 
           if (message.trim().toLowerCase() === '!pause') {
             const paused = brain.togglePaused()
@@ -148,6 +153,12 @@ export function CognitiveEngine(options: CognitiveEngineOptions): MineflayerPlug
       }
 
       if (container) {
+        const minecraftContextService = container.resolve('minecraftContextService')
+        minecraftContextService.destroy()
+
+        const airiBridge = container.resolve('airiBridge')
+        airiBridge.destroy()
+
         const brain = container.resolve('brain')
         brain.destroy()
 

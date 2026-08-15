@@ -86,6 +86,15 @@ export default {
   asarUnpack: [
     '**/*.node',
   ],
+  extraResources: [
+    {
+      from: '../../Open-AutoGLM-main/Open-AutoGLM-main',
+      to: 'Open-AutoGLM-main/Open-AutoGLM-main',
+      filter: [
+        '**/*',
+      ],
+    },
+  ],
   extraMetadata: {
     name: 'ai.moeru.airi',
     main: 'out/main/index.js',

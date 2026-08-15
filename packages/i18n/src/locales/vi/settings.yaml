@@ -311,7 +311,7 @@ pages:
       description: Chơi Factorio!
       title: Factorio
       enable: Bật tích hợp Factorio
-      enable-description: Cho phép AIRI tương tác với trò chơi Factorio
+      enable-description: Cho phép 米塔 tương tác với trò chơi Factorio
       server-address: Địa chỉ máy chủ
       server-address-description: Địa chỉ IP hoặc tên máy chủ của máy chủ Factorio
       server-address-placeholder: Nhập địa chỉ máy chủ (ví dụ localhost hoặc 192.168.1.100)
@@ -325,7 +325,7 @@ pages:
       description: Chơi Minecraft!
       title: Minecraft
       enable: Bật tích hợp Minecraft
-      enable-description: Cho phép AIRI tương tác với trò chơi Minecraft
+      enable-description: Cho phép 米塔 tương tác với trò chơi Minecraft
       server-address: Địa chỉ máy chủ
       server-address-description: Địa chỉ IP hoặc tên máy chủ của máy chủ Minecraft
       server-address-placeholder: Nhập địa chỉ máy chủ (ví dụ localhost hoặc play.example.com)
@@ -352,11 +352,70 @@ pages:
       description: Trò chuyện & gọi thoại qua Discord
       title: Discord
       enable: Bật tích hợp Discord
-      enable-description: Cho phép AIRI tương tác qua Discord
+      enable-description: Cho phép 米塔 tương tác qua Discord
       token: Mã token của bot
       token-description: Mã token bot Discord của bạn
       token-placeholder: Nhập mã token bot Discord của bạn
       configured: Đã cấu hình Discord thành công!
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: Discord disabled
+        missing-token: Token required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: Discord connected
+        error: Discord error
+      status-detail:
+        disabled: Turn on the integration to start the local Discord bot service.
+        missing-token: Enter a Discord bot token, then enable the integration.
+        idle: Discord has not started yet.
+        syncing: Sending the current Discord settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to validate the token and report back.
+        connecting: Discord is validating the token and starting the bot.
+        ready: Discord bot is listening for messages.
+        error: Discord could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        discord-service: The Discord bot service did not report back. Restart the web or desktop app, or run @proj-airi/discord-bot.
+    messaging-telegram:
+      description: Trò chuyện với 米塔 qua Telegram, gồm ảnh và tệp video được hỗ trợ
+      title: Telegram
+      enable: Bật tích hợp Telegram
+      enable-description: Cho phép 米塔 tương tác qua Telegram
+      token: Mã API của bot
+      token-description: Mã API bot Telegram từ BotFather
+      token-placeholder: Nhập mã API bot Telegram
+      configured: Đã cấu hình Telegram thành công!
+      retry: Retry
+      never: Never
+      last-sync: 'Last sync: {time}'
+      last-status: 'Last service status: {time}'
+      status:
+        disabled: Telegram disabled
+        missing-token: Token required
+        idle: Not connected
+        syncing: Syncing configuration
+        waiting-for-service: Waiting for service
+        connecting: Connecting
+        ready: Telegram connected
+        error: Telegram error
+      status-detail:
+        disabled: Turn on the integration to start the local Telegram bot service.
+        missing-token: Enter a BotFather token, then enable the integration.
+        idle: Telegram has not started yet.
+        syncing: Sending the current Telegram settings to the local bot service.
+        waiting-for-service: Waiting for the bot service to validate the token and report back.
+        connecting: Telegram is validating the token and starting the bot.
+        ready: Telegram bot is listening for messages.
+        error: Telegram could not connect. Check the error details and retry.
+      errors:
+        server-runtime: The local messaging server is not connected. Restart the web or desktop app, or run @proj-airi/server-runtime on ws://localhost:6121/ws.
+        telegram-service: The Telegram bot service did not report back. Restart the web or desktop app, or run @proj-airi/telegram-bot.
     speech:
       description: Tổng hợp giọng nói
       sections:
@@ -404,7 +463,7 @@ pages:
       description: Sử Dụng Twitter
       title: X / Twitter
       enable: Bật tích hợp X / Twitter
-      enable-description: Cho phép AIRI tương tác với X / Twitter
+      enable-description: Cho phép 米塔 tương tác với X / Twitter
       api-key: Khóa API
       api-key-description: Khóa API X / Twitter của bạn
       api-key-placeholder: Nhập khóa API X / Twitter của bạn

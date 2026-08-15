@@ -12,7 +12,7 @@ import { availableLogLevelStrings, Format, LogLevelString, logLevelStringToLogLe
 import { MessageHeartbeat, MessageHeartbeatKind, WebSocketEventSource } from '@proj-airi/server-shared/types'
 import { defineWebSocketHandler, H3 } from 'h3'
 import { nanoid } from 'nanoid'
-import { stringify } from 'superjson'
+import { parse, stringify } from 'superjson'
 
 import packageJSON from '../package.json'
 
@@ -108,6 +108,7 @@ export function setupApp(options?: {
 
   const peers = new Map<string, AuthenticatedPeer>()
   const peersByModule = new Map<string, Map<number | undefined, AuthenticatedPeer>>()
+  const rememberedModuleConfigs = new Map<string, Record<string, unknown> | undefined>()
   const heartbeatTtlMs = options?.heartbeat?.readTimeout ?? DEFAULT_HEARTBEAT_TTL_MS
   const heartbeatMessage = options?.heartbeat?.message ?? MessageHeartbeat.Pong
   const routingMiddleware = [
@@ -148,6 +149,33 @@ export function setupApp(options?: {
     }
 
     group.set(index, p)
+
+    if (index !== undefined) {
+      const configKey = `${name}:${index}`
+      if (rememberedModuleConfigs.has(configKey)) {
+        logger.log(`Replaying saved configuration to module ${name} (index: ${index}).`)
+        send(p.peer, {
+          type: 'module:configure',
+          data: { config: rememberedModuleConfigs.get(configKey), index },
+          metadata: createServerEventMetadata(instanceId),
+        })
+      }
+    }
+    else {
+      const prefix = `${name}:`
+      for (const [key, config] of rememberedModuleConfigs) {
+        if (key.startsWith(prefix)) {
+          const suffix = key.slice(prefix.length)
+          const replayIndex = suffix === 'default' ? undefined : Number(suffix)
+          logger.log(`Replaying saved configuration to hub module ${name} (key: ${key}).`)
+          send(p.peer, {
+            type: 'module:configure',
+            data: { config, index: replayIndex },
+            metadata: createServerEventMetadata(instanceId),
+          })
+        }
+      }
+    }
   }
 
   function unregisterModulePeer(p: AuthenticatedPeer) {
@@ -200,13 +228,18 @@ export function setupApp(options?: {
       let event: WebSocketEvent
 
       try {
-        event = message.json() as WebSocketEvent
+        event = parse<WebSocketEvent>(message.text())
       }
       catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err)
-        send(peer, RESPONSES.error(`invalid JSON, error: ${errorMessage}`, instanceId))
+        try {
+          event = message.json() as WebSocketEvent
+        }
+        catch {
+          const errorMessage = err instanceof Error ? err.message : String(err)
+          send(peer, RESPONSES.error(`invalid JSON, error: ${errorMessage}`, instanceId))
 
-        return
+          return
+        }
       }
 
       logger.withFields({
@@ -324,17 +357,21 @@ export function setupApp(options?: {
             }
           }
 
-          const target = peersByModule.get(moduleName)?.get(moduleIndex)
+          const configKey = `${moduleName}:${moduleIndex ?? 'default'}`
+          rememberedModuleConfigs.set(configKey, config)
+          const moduleGroup = peersByModule.get(moduleName)
+          const target = moduleGroup?.get(moduleIndex) ?? (moduleIndex !== undefined ? moduleGroup?.get(undefined) : undefined)
           if (target) {
+            logger.log(`Forwarding configuration to module ${moduleName}.`)
             send(target.peer, {
               type: 'module:configure',
-              data: { config },
+              data: { config, index: moduleIndex },
               // NOTICE: this will forward the original event metadata as-is
               metadata: event.metadata,
             })
           }
           else {
-            send(peer, RESPONSES.error('module not found, it hasn\'t announced itself or the name is incorrect', instanceId))
+            logger.warn(`Module ${moduleName} is not connected yet; its configuration will be replayed when it registers.`)
           }
 
           return

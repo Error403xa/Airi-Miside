@@ -4,6 +4,7 @@ import type { ChatProvider } from '@xsai-ext/providers/utils'
 import { isStageTamagotchi } from '@proj-airi/stage-shared'
 import { useAudioAnalyzer } from '@proj-airi/stage-ui/composables'
 import { useAudioContext } from '@proj-airi/stage-ui/stores/audio'
+import { useAutoGLMStore } from '@proj-airi/stage-ui/stores/autoglm'
 import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
 import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
 import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
@@ -25,6 +26,7 @@ const isComposing = ref(false)
 const isListening = ref(false) // Transcription listening state (separate from microphone enabled)
 
 const providersStore = useProvidersStore()
+const autoGLM = useAutoGLMStore()
 const { activeProvider, activeModel } = storeToRefs(useConsciousnessStore())
 const { themeColorsHueDynamic } = storeToRefs(useSettings())
 
@@ -83,6 +85,13 @@ async function debouncedAutoSend(text: string) {
     const textToSend = pendingAutoSendText.value.trim()
     if (textToSend && autoSendEnabled.value) {
       try {
+        if (autoGLM.shouldHandleChat) {
+          await ingest(textToSend, {})
+          messageInput.value = ''
+          pendingAutoSendText.value = ''
+          return
+        }
+
         const providerConfig = providersStore.getProviderConfig(activeProvider.value)
         await ingest(textToSend, {
           chatProvider: await providersStore.getProviderInstance(activeProvider.value) as ChatProvider,
@@ -110,6 +119,11 @@ async function handleSend() {
   messageInput.value = ''
 
   try {
+    if (autoGLM.shouldHandleChat) {
+      await ingest(textToSend, {})
+      return
+    }
+
     const providerConfig = providersStore.getProviderConfig(activeProvider.value)
 
     await ingest(textToSend, {
@@ -120,7 +134,6 @@ async function handleSend() {
   }
   catch (error) {
     messageInput.value = textToSend
-    messages.value.pop()
     messages.value.push({
       role: 'error',
       content: (error as Error).message,
@@ -135,6 +148,9 @@ watch(hearingPopoverOpen, async (value) => {
 })
 
 watch([activeProvider, activeModel], async () => {
+  if (autoGLM.shouldHandleChat)
+    return
+
   if (activeProvider.value && activeModel.value) {
     await discoverToolsCompatibility(activeModel.value, await providersStore.getProviderInstance<ChatProvider>(activeProvider.value), [])
   }
@@ -340,6 +356,12 @@ async function stopListening() {
       const textToSend = pendingAutoSendText.value.trim()
       pendingAutoSendText.value = ''
       try {
+        if (autoGLM.shouldHandleChat) {
+          await ingest(textToSend, {})
+          messageInput.value = ''
+          return
+        }
+
         const providerConfig = providersStore.getProviderConfig(activeProvider.value)
         await ingest(textToSend, {
           chatProvider: await providersStore.getProviderInstance(activeProvider.value) as ChatProvider,

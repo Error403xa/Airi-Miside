@@ -15,12 +15,12 @@ import { computed, onMounted, onUnmounted, ref, shallowRef, toRef, watch } from 
 
 import {
   createBeatSyncController,
-
+  useLive2DIdleEyeFocus,
   useLive2DMotionManagerUpdate,
   useMotionUpdatePluginAutoEyeBlink,
   useMotionUpdatePluginBeatSync,
   useMotionUpdatePluginIdleDisable,
-  useMotionUpdatePluginIdleFocus,
+  useMotionUpdatePluginIdleFocusWithControl,
 } from '../../../composables/live2d'
 import { Emotion, EmotionNeutralMotionName } from '../../../constants/emotions'
 import { useLive2d } from '../../../stores/live2d'
@@ -36,6 +36,10 @@ const props = withDefaults(defineProps<{
   paused?: boolean
   focusAt?: { x: number, y: number }
   disableFocusAt?: boolean
+  disableIdleEyeFocus?: boolean
+  focusIgnoreLeftRatio?: number
+  focusTrackingStrengthX?: number
+  focusTrackingStrengthY?: number
   xOffset?: number | string
   yOffset?: number | string
   scale?: number
@@ -50,6 +54,10 @@ const props = withDefaults(defineProps<{
   paused: false,
   focusAt: () => ({ x: 0, y: 0 }),
   disableFocusAt: false,
+  disableIdleEyeFocus: false,
+  focusIgnoreLeftRatio: 0,
+  focusTrackingStrengthX: 1,
+  focusTrackingStrengthY: 1,
   scale: 1,
   themeColorsHue: 220.44,
   themeColorsHueDynamic: false,
@@ -61,7 +69,19 @@ const props = withDefaults(defineProps<{
 
 const emits = defineEmits<{
   (e: 'modelLoaded'): void
+  (e: 'error', error: unknown): void
 }>()
+
+interface Live2DExpressionParameterOverride {
+  Id: string
+  Value: number
+  Blend?: 'Add' | 'Multiply' | 'Overwrite'
+}
+
+interface Live2DExpressionFile {
+  Type?: string
+  Parameters?: Live2DExpressionParameterOverride[]
+}
 
 const componentState = defineModel<'pending' | 'loading' | 'mounted'>('state', { default: 'pending' })
 
@@ -95,11 +115,20 @@ const offset = computed(() => parsePropsOffset())
 const pixiApp = toRef(() => props.app)
 const paused = toRef(() => props.paused)
 const focusAt = toRef(() => props.focusAt)
+const disableIdleEyeFocus = toRef(() => props.disableIdleEyeFocus)
 const model = ref<Live2DModel<PixiLive2DInternalModel>>()
+const expressionOverrides = shallowRef<Record<string, Live2DExpressionParameterOverride[]>>({})
+const expressionOverrideParameterIds = shallowRef<string[]>([])
+const expressionRenderedValues = shallowRef<Record<string, number>>({})
+const expressionDefaultValues = shallowRef<Record<string, number>>({})
+const expressionGroupKeys = shallowRef<Record<string, string[]>>({})
+let restoreInternalModelUpdate: (() => void) | undefined
 const initialModelWidth = ref<number>(0)
 const initialModelHeight = ref<number>(0)
 const mouthOpenSize = computed(() => Math.max(0, Math.min(100, props.mouthOpenSize)))
 const lastUpdateTime = ref(0)
+const pointerEyeFocus = ref({ x: 0, y: 0 })
+const pointerHeadFocus = ref({ x: 0, y: 0 })
 
 const { isDark: dark } = useTheme()
 const breakpoints = useBreakpoints(breakpointsTailwind)
@@ -110,6 +139,25 @@ const dropShadowFilter = shallowRef(new DropShadowFilter({
   distance: 20,
   rotation: 45,
 }))
+const live2dStore = useLive2d()
+const {
+  currentMotion,
+  availableMotions,
+  currentExpression,
+  availableExpressions,
+  activeExpressions,
+  motionMap,
+  modelParameters,
+} = storeToRefs(live2dStore)
+const idleEyeFocus = computed(() => props.modelId === 'preset-live2d-xiaomita' || props.modelId === 'preset-live2d-xiaomita-pro'
+  ? useLive2DIdleEyeFocus({
+      xRange: [-0.18, 0.18],
+      yRange: [-0.08, 0.1],
+      focusScaleX: 0.2,
+      focusScaleY: 0.14,
+      centerBias: 0.7,
+    })
+  : useLive2DIdleEyeFocus())
 
 function getCoreModel() {
   return model.value!.internalModel.coreModel as any
@@ -119,13 +167,19 @@ function setScaleAndPosition() {
   if (!model.value)
     return
 
+  const viewport = typeof window === 'undefined' ? undefined : window
+  const stageWidth = props.width || viewport?.innerWidth || 0
+  const stageHeight = props.height || viewport?.innerHeight || 0
+  if (!stageWidth || !stageHeight || !initialModelWidth.value || !initialModelHeight.value)
+    return
+
   let offsetFactor = 2.2
   if (isMobile.value) {
     offsetFactor = 2.2
   }
 
-  const heightScale = (props.height * 0.95 / initialModelHeight.value * offsetFactor)
-  const widthScale = (props.width * 0.95 / initialModelWidth.value * offsetFactor)
+  const heightScale = (stageHeight * 0.95 / initialModelHeight.value * offsetFactor)
+  const widthScale = (stageWidth * 0.95 / initialModelWidth.value * offsetFactor)
   let scale = Math.min(heightScale, widthScale)
 
   // Prevent zero or NaN values to fix the "headless" model issue.
@@ -135,17 +189,229 @@ function setScaleAndPosition() {
 
   model.value.scale.set(scale * props.scale, scale * props.scale)
 
-  model.value.x = (props.width / 2) + offset.value.xOffset
-  model.value.y = props.height + offset.value.yOffset
+  model.value.x = (stageWidth / 2) + offset.value.xOffset
+  model.value.y = stageHeight + offset.value.yOffset
 }
 
-const live2dStore = useLive2d()
-const {
-  currentMotion,
-  availableMotions,
-  motionMap,
-  modelParameters,
-} = storeToRefs(live2dStore)
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function normalizeFocusTarget(target: { x: number, y: number }) {
+  const ignoreLeftRatio = Math.max(0, Math.min(1, props.focusIgnoreLeftRatio))
+  const trackingStrengthX = Math.max(0, Math.min(1, props.focusTrackingStrengthX))
+  const trackingStrengthY = Math.max(0, Math.min(1, props.focusTrackingStrengthY))
+  const leftBoundary = props.width * ignoreLeftRatio
+  const normalizedTarget = ignoreLeftRatio > 0 && target.x < leftBoundary
+    ? {
+        x: props.width / 2,
+        y: target.y,
+      }
+    : target
+
+  if (trackingStrengthX >= 1 && trackingStrengthY >= 1)
+    return normalizedTarget
+
+  return {
+    x: (props.width / 2) + ((normalizedTarget.x - (props.width / 2)) * trackingStrengthX),
+    y: (props.height / 2) + ((normalizedTarget.y - (props.height / 2)) * trackingStrengthY),
+  }
+}
+
+function updateEyeBallFocus(target: { x: number, y: number }) {
+  if (!model.value)
+    return
+
+  const coreModel = model.value.internalModel.coreModel
+  const targetEyeX = clamp(((target.x - (props.width / 2)) / Math.max(props.width / 2, 1)) * 0.42, -0.42, 0.42)
+  const targetEyeY = clamp(((target.y - (props.height / 2)) / Math.max(props.height / 2, 1)) * 0.3, -0.3, 0.3)
+  const eyeFollowLerp = props.modelId === 'preset-live2d-mita' ? 0.24 : 0.22
+
+  pointerEyeFocus.value = {
+    x: pointerEyeFocus.value.x + ((targetEyeX - pointerEyeFocus.value.x) * eyeFollowLerp),
+    y: pointerEyeFocus.value.y + ((targetEyeY - pointerEyeFocus.value.y) * eyeFollowLerp),
+  }
+
+  coreModel.setParameterValueById('ParamEyeBallX', pointerEyeFocus.value.x)
+  coreModel.setParameterValueById('ParamEyeBallY', pointerEyeFocus.value.y)
+}
+
+function updateMitaFocus(target: { x: number, y: number }) {
+  if (!model.value || props.modelId !== 'preset-live2d-mita')
+    return
+
+  const coreModel = model.value.internalModel.coreModel
+  const targetX = clamp((target.x - (props.width / 2)) / Math.max(props.width / 2, 1), -1, 1)
+  const targetY = clamp((target.y - (props.height / 2)) / Math.max(props.height / 2, 1), -1, 1)
+
+  pointerHeadFocus.value = {
+    x: pointerHeadFocus.value.x + (((targetX * 0.55) - pointerHeadFocus.value.x) * 0.12),
+    y: pointerHeadFocus.value.y + (((targetY * 0.4) - pointerHeadFocus.value.y) * 0.12),
+  }
+  updateEyeBallFocus(target)
+
+  coreModel.setParameterValueById('ParamAngleX', pointerHeadFocus.value.x * 18)
+  coreModel.setParameterValueById('ParamAngleY', pointerHeadFocus.value.y * 12)
+  coreModel.setParameterValueById('ParamAngleZ', pointerHeadFocus.value.x * pointerHeadFocus.value.y * -8)
+}
+
+function applyExpressionOverrides() {
+  if (props.modelId !== 'preset-live2d-mita' || !model.value)
+    return
+
+  const coreModel = model.value.internalModel.coreModel
+
+  const nextRenderedValues: Record<string, number> = {}
+  const targetParameters = new Map<string, Live2DExpressionParameterOverride>()
+  for (const expressionFile of activeExpressions.value) {
+    for (const parameter of expressionOverrides.value[expressionFile] ?? []) {
+      targetParameters.set(parameter.Id, parameter)
+    }
+  }
+
+  for (const parameterId of expressionOverrideParameterIds.value) {
+    const baseValue = expressionDefaultValues.value[parameterId] ?? Number(coreModel.getParameterValueById(parameterId) ?? 0)
+    const activeParameter = targetParameters.get(parameterId)
+
+    let targetValue = baseValue
+    if (activeParameter) {
+      switch (activeParameter.Blend) {
+        case 'Multiply':
+          targetValue = baseValue * activeParameter.Value
+          break
+        case 'Overwrite':
+          targetValue = activeParameter.Value
+          break
+        case 'Add':
+        default:
+          targetValue = baseValue + activeParameter.Value
+          break
+      }
+    }
+
+    const previousValue = expressionRenderedValues.value[parameterId] ?? baseValue
+    const smoothingFactor = activeParameter ? 0.22 : 0.38
+    const nextValue = previousValue + ((targetValue - previousValue) * smoothingFactor)
+
+    coreModel.setParameterValueById(parameterId, nextValue)
+    nextRenderedValues[parameterId] = nextValue
+  }
+
+  expressionRenderedValues.value = nextRenderedValues
+}
+
+function clearMitaExpressionOverrides() {
+  if (props.modelId !== 'preset-live2d-mita' || !model.value)
+    return
+
+  const coreModel = model.value.internalModel.coreModel
+  for (const parameterId of expressionOverrideParameterIds.value) {
+    const baseValue = expressionDefaultValues.value[parameterId]
+    if (typeof baseValue === 'number')
+      coreModel.setParameterValueById(parameterId, baseValue)
+  }
+
+  expressionRenderedValues.value = {}
+}
+
+function resetExpressionOverrides() {
+  expressionOverrides.value = {}
+  expressionGroupKeys.value = {}
+  expressionOverrideParameterIds.value = []
+  expressionRenderedValues.value = {}
+  expressionDefaultValues.value = {}
+}
+
+function captureMissingExpressionDefaults() {
+  if (props.modelId !== 'preset-live2d-mita' || !model.value)
+    return
+
+  const coreModel = model.value.internalModel.coreModel
+  const nextDefaults = { ...expressionDefaultValues.value }
+
+  for (const parameterId of expressionOverrideParameterIds.value) {
+    if (!(parameterId in nextDefaults))
+      nextDefaults[parameterId] = Number(coreModel.getParameterValueById(parameterId) ?? 0)
+  }
+
+  expressionDefaultValues.value = nextDefaults
+}
+
+function resolveExpressionOverrideUrl(expressionFile: string, modelUrl: string) {
+  const absoluteModelUrl = new URL(modelUrl, window.location.href)
+  const modelDirectoryUrl = new URL('.', absoluteModelUrl)
+  return new URL(expressionFile, modelDirectoryUrl).href
+}
+
+async function loadExpressionOverrideEntries(baseUrl: string, expressions: { expressionFile: string }[]) {
+  const entries = await Promise.all(expressions.map(async (expression) => {
+    try {
+      const response = await fetch(resolveExpressionOverrideUrl(expression.expressionFile, baseUrl))
+      if (!response.ok)
+        return [expression.expressionFile, []] as const
+
+      const json = await response.json() as Live2DExpressionFile
+      return [expression.expressionFile, json.Parameters ?? []] as const
+    }
+    catch (error) {
+      console.warn('Failed to load expression override file:', expression.expressionFile, error)
+      return [expression.expressionFile, []] as const
+    }
+  }))
+
+  return Object.fromEntries(entries)
+}
+
+async function ensureExpressionOverridesLoaded(expressionFiles: string[]) {
+  if (props.modelId !== 'preset-live2d-mita' || !modelSrcRef.value) {
+    resetExpressionOverrides()
+    return
+  }
+
+  const missingExpressionFiles = expressionFiles.filter(expressionFile =>
+    !(expressionFile in expressionOverrides.value),
+  )
+
+  if (missingExpressionFiles.length === 0)
+    return
+
+  const targetExpressions = availableExpressions.value.filter(expression =>
+    missingExpressionFiles.includes(expression.expressionFile),
+  )
+
+  if (targetExpressions.length === 0)
+    return
+
+  const loadedOverrides = await loadExpressionOverrideEntries(modelSrcRef.value, targetExpressions)
+  expressionOverrides.value = {
+    ...expressionOverrides.value,
+    ...loadedOverrides,
+  }
+
+  const allParameters = Object.values(expressionOverrides.value).flatMap(parameters => parameters)
+  expressionOverrideParameterIds.value = [...new Set(allParameters.map(parameter => parameter.Id))]
+  expressionGroupKeys.value = Object.fromEntries(Object.entries(expressionOverrides.value).map(([expressionFile, parameters]) => [
+    expressionFile,
+    [...new Set(parameters.map(parameter => parameter.Id))],
+  ]))
+  captureMissingExpressionDefaults()
+  expressionRenderedValues.value = {}
+}
+
+function normalizeActiveExpressionFiles(expressionIds: string[]) {
+  return expressionIds.reduce<string[]>((normalizedExpressions, expressionId) => {
+    if (!expressionId || normalizedExpressions.includes(expressionId))
+      return normalizedExpressions
+
+    const nextGroupKeys = expressionGroupKeys.value[expressionId] ?? [expressionId]
+    const filteredExpressionFiles = normalizedExpressions.filter((activeExpressionFile) => {
+      const activeGroupKeys = expressionGroupKeys.value[activeExpressionFile] ?? [activeExpressionFile]
+      return !activeGroupKeys.some(groupKey => nextGroupKeys.includes(groupKey))
+    })
+
+    return [...filteredExpressionFiles, expressionId]
+  }, [])
+}
 
 const themeColorsHue = toRef(() => props.themeColorsHue)
 const themeColorsHueDynamic = toRef(() => props.themeColorsHueDynamic)
@@ -193,6 +459,8 @@ async function loadModel() {
   // REVIEW: here as await until(...) guarded the pixiApp and stage to be valid.
   if (model.value && pixiApp.value?.stage) {
     try {
+      restoreInternalModelUpdate?.()
+      restoreInternalModelUpdate = undefined
       pixiApp.value.stage.removeChild(model.value)
       model.value.destroy()
     }
@@ -248,6 +516,7 @@ async function loadModel() {
     const internalModel = model.value.internalModel
     const coreModel = internalModel.coreModel
     const motionManager = internalModel.motionManager
+    const expressionManager = motionManager.expressionManager
     coreModel.setParameterValueById('ParamMouthOpenY', mouthOpenSize.value)
 
     availableMotions.value = Object
@@ -258,6 +527,27 @@ async function loadModel() {
         fileName: motion.File,
       })) || []))
       .filter(Boolean)
+
+    availableExpressions.value = expressionManager?.definitions?.map((definition: any, index: number) => ({
+      expressionName: definition?.Name || definition?.name || `Expression ${index + 1}`,
+      expressionFile: expressionManager.getExpressionFile(definition),
+      expressionIndex: index,
+    })) || []
+    resetExpressionOverrides()
+    if (props.modelId === 'preset-live2d-mita' && availableExpressions.value.length > 0) {
+      await ensureExpressionOverridesLoaded(availableExpressions.value.map(expression => expression.expressionFile))
+      clearMitaExpressionOverrides()
+    }
+
+    if (currentExpression.value && !availableExpressions.value.some(expression =>
+      expression.expressionFile === currentExpression.value
+      || expression.expressionName === currentExpression.value,
+    )) {
+      currentExpression.value = ''
+    }
+
+    const availableExpressionFiles = new Set(availableExpressions.value.map(expression => expression.expressionFile))
+    activeExpressions.value = activeExpressions.value.filter(expressionFile => availableExpressionFiles.has(expressionFile))
 
     // Check if user has selected a runtime motion to play as idle
     const selectedMotionGroup = localStorage.getItem('selected-runtime-motion-group')
@@ -312,14 +602,33 @@ async function loadModel() {
       lastUpdateTime,
     })
 
-    motionManagerUpdate.register(useMotionUpdatePluginBeatSync(beatSync), 'pre')
+    if (props.modelId !== 'preset-live2d-mita') {
+      // NOTICE: Mita drives head angles from pointer focus in a dedicated post-update pass.
+      // Registering beat-sync here makes ParamAngleX/Y/Z oscillate between the beat base
+      // (which stays at the persisted modelParameters store defaults) and the pointer target,
+      // causing visible jitter while following the cursor.
+      motionManagerUpdate.register(useMotionUpdatePluginBeatSync(beatSync), 'pre')
+    }
     motionManagerUpdate.register(useMotionUpdatePluginIdleDisable(), 'pre')
-    motionManagerUpdate.register(useMotionUpdatePluginIdleFocus(), 'post')
+    motionManagerUpdate.register(useMotionUpdatePluginIdleFocusWithControl(disableIdleEyeFocus, idleEyeFocus.value), 'post')
     motionManagerUpdate.register(useMotionUpdatePluginAutoEyeBlink(), 'post')
-
     const hookedUpdate = motionManager.update as (model: PixiLive2DInternalModel['coreModel'], now: number) => boolean
     motionManager.update = function (model: PixiLive2DInternalModel['coreModel'], now: number) {
       return motionManagerUpdate.hookUpdate(model, now, hookedUpdate)
+    }
+
+    const originalInternalModelUpdate = internalModel.update.bind(internalModel)
+    internalModel.update = ((dt: DOMHighResTimeStamp, now: DOMHighResTimeStamp) => {
+      originalInternalModelUpdate(dt, now)
+      applyExpressionOverrides()
+      // NOTICE: Mita's physics file already derives body angles from head angles.
+      // Writing ParamBodyAngle* here fights the physics outputs and causes visible shaking.
+      // Auto blink is also handled by the shared motion-manager plugin, so keep this hook focused
+      // on head + eye tracking only.
+      updateMitaFocus(normalizeFocusTarget(focusAt.value))
+    }) as typeof internalModel.update
+    restoreInternalModelUpdate = () => {
+      internalModel.update = originalInternalModelUpdate
     }
 
     motionManager.on('motionStart', (group, index) => {
@@ -369,6 +678,33 @@ async function loadModel() {
 
     emits('modelLoaded')
   }
+  catch (error) {
+    console.error('[Live2D] Failed to load model.', {
+      modelId: props.modelId,
+      modelSrc: modelSrcRef.value,
+      error,
+    })
+
+    try {
+      restoreInternalModelUpdate?.()
+      restoreInternalModelUpdate = undefined
+      if (model.value && pixiApp.value?.stage) {
+        pixiApp.value.stage.removeChild(model.value)
+        model.value.destroy()
+      }
+    }
+    catch (cleanupError) {
+      console.warn('[Live2D] Failed to clean up model after load error.', cleanupError)
+    }
+
+    model.value = undefined
+    availableMotions.value = []
+    availableExpressions.value = []
+    currentExpression.value = ''
+    activeExpressions.value = []
+    resetExpressionOverrides()
+    emits('error', error)
+  }
   finally {
     modelLoading.value = false
     componentState.value = 'mounted'
@@ -390,6 +726,44 @@ async function setMotion(motionName: string, index?: number) {
   }
   catch (error) {
     console.error('Failed to start motion:', motionName, error)
+  }
+}
+
+async function setExpression(expressionId: string) {
+  const expressionManager = model.value?.internalModel.motionManager.expressionManager
+  if (!model.value)
+    return
+
+  if (props.modelId === 'preset-live2d-mita') {
+    if (expressionId)
+      await ensureExpressionOverridesLoaded([expressionId])
+    applyExpressionOverrides()
+    return
+  }
+
+  if (!expressionManager)
+    return
+
+  if (!expressionId) {
+    expressionManager.resetExpression()
+    return
+  }
+
+  try {
+    const selectedExpression = availableExpressions.value.find(expression =>
+      expression.expressionFile === expressionId
+      || expression.expressionName === expressionId,
+    )
+
+    if (selectedExpression) {
+      await model.value.expression(selectedExpression.expressionIndex)
+      return
+    }
+
+    await model.value.expression(expressionId)
+  }
+  catch (error) {
+    console.error('Failed to set expression:', expressionId, error)
   }
 }
 
@@ -416,7 +790,11 @@ function updateDropShadowFilter() {
 }
 
 watch([() => props.width, () => props.height], handleResize)
-watch(modelSrcRef, async () => await loadModel(), { immediate: true })
+watch(modelSrcRef, async () => {
+  pointerEyeFocus.value = { x: 0, y: 0 }
+  pointerHeadFocus.value = { x: 0, y: 0 }
+  await loadModel()
+}, { immediate: true })
 watch(dark, updateDropShadowFilter, { immediate: true })
 watch([model, themeColorsHue], updateDropShadowFilter)
 watch(live2dShadowEnabled, updateDropShadowFilter)
@@ -446,6 +824,25 @@ watch([themeColorsHueDynamic, live2dShadowEnabled], ([dynamic, shadowEnabled]) =
 
 watch(mouthOpenSize, value => getCoreModel().setParameterValueById('ParamMouthOpenY', value))
 watch(currentMotion, value => setMotion(value.group, value.index))
+watch(currentExpression, async value => await setExpression(value))
+watch(activeExpressions, async () => {
+  if (props.modelId === 'preset-live2d-mita') {
+    const normalizedExpressions = normalizeActiveExpressionFiles(activeExpressions.value)
+    if (normalizedExpressions.length !== activeExpressions.value.length
+      || normalizedExpressions.some((expressionFile, index) => expressionFile !== activeExpressions.value[index])) {
+      activeExpressions.value = normalizedExpressions
+      return
+    }
+
+    if (normalizedExpressions.length === 0) {
+      applyExpressionOverrides()
+    }
+    else {
+      await ensureExpressionOverridesLoaded(normalizedExpressions)
+      applyExpressionOverrides()
+    }
+  }
+}, { deep: true })
 watch(paused, value => value ? pixiApp.value?.stop() : pixiApp.value?.start())
 
 // Watch and apply model parameters
@@ -606,7 +1003,8 @@ watch(focusAt, (value) => {
   if (props.disableFocusAt)
     return
 
-  model.value.focus(value.x, value.y)
+  const normalizedTarget = normalizeFocusTarget(value)
+  model.value.focus(normalizedTarget.x, normalizedTarget.y)
 })
 
 onMounted(() => {
@@ -620,6 +1018,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   isUnmounted = true
+  restoreInternalModelUpdate?.()
+  restoreInternalModelUpdate = undefined
   disposeShouldUpdateView?.()
 })
 

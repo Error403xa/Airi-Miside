@@ -31,6 +31,7 @@ export interface ClientOptions<C = undefined> {
   }
   onError?: (error: unknown) => void
   onClose?: () => void
+  onOpen?: () => void
   autoConnect?: boolean
   autoReconnect?: boolean
   maxReconnectAttempts?: number
@@ -78,6 +79,7 @@ export class Client<C = undefined> {
       configSchema: undefined,
       onError: () => {},
       onClose: () => {},
+      onOpen: () => {},
       autoConnect: true,
       autoReconnect: true,
       maxReconnectAttempts: -1,
@@ -206,6 +208,7 @@ export class Client<C = undefined> {
           this.connected = true
 
           this.startHeartbeat()
+          this.opts.onOpen?.()
 
           if (this.opts.token)
             this.tryAuthenticate()

@@ -1,0 +1,14 @@
+0.0.0.0:4821 {
+  encode gzip zstd
+  root * /srv
+
+  @api path /api/* /health
+  handle @api {
+    reverse_proxy api:3000
+  }
+
+  handle {
+    try_files {path} /index.html
+    file_server
+  }
+}

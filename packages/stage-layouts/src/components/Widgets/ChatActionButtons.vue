@@ -3,6 +3,8 @@ import { useChatMaintenanceStore } from '@proj-airi/stage-ui/stores/chat/mainten
 import { useTheme } from '@proj-airi/ui'
 import { ref } from 'vue'
 
+import AutoGLMControls from './AutoGLMControls.vue'
+
 import { BackgroundDialogPicker } from '../Backgrounds'
 
 const { cleanupMessages } = useChatMaintenanceStore()
@@ -14,6 +16,8 @@ const backgroundDialogOpen = ref(false)
 <template>
   <BackgroundDialogPicker v-model="backgroundDialogOpen" />
   <div absolute bottom--8 right-0 flex gap-2>
+    <AutoGLMControls />
+
     <button
       class="max-h-[10lh] min-h-[1lh]"
       bg="neutral-100 dark:neutral-800"

@@ -1,0 +1,38 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "3.moc3",
+		"Textures": [
+			"3.4096/texture_00.png",
+			"3.4096/texture_01.png"
+		],
+		"Physics": "3.physics3.json",
+		"DisplayInfo": "3.cdi3.json",
+		"MotionSync": "3.motionsync3.json",
+		"Expressions": [
+			{"Name": "default", "File": "exp_default.exp3.json"},
+			{"Name": "smile", "File": "exp_smile.exp3.json"},
+			{"Name": "happy", "File": "exp_happy.exp3.json"},
+			{"Name": "sad", "File": "exp_sad.exp3.json"},
+			{"Name": "surprised", "File": "exp_surprised.exp3.json"},
+			{"Name": "angry", "File": "exp_angry.exp3.json"}
+		]
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeLSmile",
+				"ParamEyeROpen",
+				"ParamEyeRSmile"
+			]
+		}
+	]
+}

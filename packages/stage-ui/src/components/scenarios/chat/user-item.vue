@@ -35,12 +35,13 @@ const containerClasses = computed(() => [
 ])
 
 const boxClasses = computed(() => [
+  'max-w-full min-w-0 overflow-hidden',
   props.variant === 'mobile' ? 'px-2 py-2 text-sm bg-neutral-100/90 dark:bg-neutral-800/90' : 'px-3 py-3 bg-neutral-100/80 dark:bg-neutral-800/80',
 ])
 </script>
 
 <template>
-  <div v-if="message.role === 'user'" :class="containerClasses" class="ph-no-capture">
+  <div v-if="message.role === 'user'" max-w-full min-w-0 :class="containerClasses" class="ph-no-capture">
     <div
       flex="~ col" shadow="sm neutral-200/50 dark:none"
       min-w-20 rounded-xl h="unset <sm:fit"

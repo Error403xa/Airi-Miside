@@ -21,6 +21,18 @@ export interface ElectronServerChannelConfig {
 export const electronGetServerChannelConfig = defineInvokeEventa<ElectronServerChannelConfig>('eventa:invoke:electron:server-channel:get-config')
 export const electronApplyServerChannelConfig = defineInvokeEventa<ElectronServerChannelConfig, Partial<ElectronServerChannelConfig>>('eventa:invoke:electron:server-channel:apply-config')
 
+export interface ElectronAutoGLMRuntimeStatus {
+  running: boolean
+  baseUrl: string
+  host: string
+  port: number
+  pid?: number
+  projectDir?: string
+  lastError?: string
+}
+export const electronAutoGLMEnsureStarted = defineInvokeEventa<ElectronAutoGLMRuntimeStatus>('eventa:invoke:electron:autoglm:ensure-started')
+export const electronAutoGLMGetRuntimeStatus = defineInvokeEventa<ElectronAutoGLMRuntimeStatus>('eventa:invoke:electron:autoglm:get-runtime-status')
+
 export const electronPluginList = defineInvokeEventa<PluginRegistrySnapshot>('eventa:invoke:electron:plugins:list')
 export const electronPluginSetEnabled = defineInvokeEventa<PluginRegistrySnapshot, { name: string, enabled: boolean, path?: string }>('eventa:invoke:electron:plugins:set-enabled')
 export const electronPluginLoadEnabled = defineInvokeEventa<PluginRegistrySnapshot>('eventa:invoke:electron:plugins:load-enabled')

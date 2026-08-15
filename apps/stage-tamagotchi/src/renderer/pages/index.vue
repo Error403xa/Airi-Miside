@@ -16,12 +16,14 @@ import { WidgetStage } from '@proj-airi/stage-ui/components/scenes'
 import { useAudioRecorder } from '@proj-airi/stage-ui/composables/audio/audio-recorder'
 import { useCanvasPixelIsTransparentAtPoint } from '@proj-airi/stage-ui/composables/canvas-alpha'
 import { useVAD } from '@proj-airi/stage-ui/stores/ai/models/vad'
+import { useAutoGLMStore } from '@proj-airi/stage-ui/stores/autoglm'
 import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
 import { useLive2d } from '@proj-airi/stage-ui/stores/live2d'
 import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
 import { useHearingSpeechInputPipeline } from '@proj-airi/stage-ui/stores/modules/hearing'
 import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
 import { useSettings, useSettingsAudioDevice } from '@proj-airi/stage-ui/stores/settings'
+import { useStageDisplayStore } from '@proj-airi/stage-ui/stores/stage-display'
 import { refDebounced, useBroadcastChannel } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onUnmounted, ref, toRef, watch } from 'vue'
@@ -81,8 +83,25 @@ const setIgnoreMouseEvents = useElectronEventaInvoke(electron.window.setIgnoreMo
 const { scale, positionInPercentageString } = storeToRefs(useLive2d())
 const { live2dLookAtX, live2dLookAtY } = storeToRefs(useWindowStore())
 const { fadeOnHoverEnabled } = storeToRefs(useControlsIslandStore())
+const { immersiveStageEnabled } = storeToRefs(useStageDisplayStore())
+const immersiveFadeRestoreValue = ref<boolean | null>(null)
 
 watch(componentStateStage, () => isLoading.value = componentStateStage.value !== 'mounted', { immediate: true })
+
+watch(immersiveStageEnabled, (enabled) => {
+  if (enabled) {
+    if (immersiveFadeRestoreValue.value === null)
+      immersiveFadeRestoreValue.value = fadeOnHoverEnabled.value
+
+    fadeOnHoverEnabled.value = true
+    return
+  }
+
+  if (immersiveFadeRestoreValue.value !== null) {
+    fadeOnHoverEnabled.value = immersiveFadeRestoreValue.value
+    immersiveFadeRestoreValue.value = null
+  }
+}, { immediate: true })
 
 const { pause, resume } = watch(isTransparent, (transparent) => {
   shouldFadeOnCursorWithin.value = fadeOnHoverEnabled.value && !transparent
@@ -138,6 +157,7 @@ const providersStore = useProvidersStore()
 const consciousnessStore = useConsciousnessStore()
 const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
 const chatStore = useChatOrchestratorStore()
+const autoGLM = useAutoGLMStore()
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
 const {
@@ -216,6 +236,12 @@ async function startAudioInteraction() {
 
           void (async () => {
             try {
+              if (autoGLM.shouldHandleChat) {
+                console.info('[Main Page] Sending transcription to AutoGLM:', finalText)
+                await chatStore.ingest(finalText, {})
+                return
+              }
+
               const provider = await providersStore.getProviderInstance(activeChatProvider.value)
               if (!provider || !activeChatModel.value) {
                 console.warn('[Main Page] No provider or model available, skipping chat send')
@@ -259,6 +285,11 @@ async function startAudioInteraction() {
       postCaption({ type: 'caption-speaker', text })
 
       try {
+        if (autoGLM.shouldHandleChat) {
+          await chatStore.ingest(text, {})
+          return
+        }
+
         const provider = await providersStore.getProviderInstance(activeChatProvider.value)
         if (!provider || !activeChatModel.value)
           return
@@ -319,14 +350,17 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
     max-h="[100vh]"
     max-w="[100vw]"
     flex="~ col"
-    relative z-2 h-full overflow-hidden rounded-xl
+    :class="[
+      'relative z-2 h-full overflow-hidden',
+      immersiveStageEnabled ? 'rounded-none' : 'rounded-xl',
+    ]"
     transition="opacity duration-500 ease-in-out"
   >
     <div
-      v-show="!isLoading"
       :class="[
         'relative h-full w-full items-end gap-2',
         'transition-opacity duration-250 ease-in-out',
+        isLoading ? 'pointer-events-none opacity-0' : 'opacity-100',
       ]"
     >
       <div
@@ -335,11 +369,11 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
           'absolute',
           'top-0 left-0 w-full h-full',
           'overflow-hidden',
-          'rounded-2xl',
+          immersiveStageEnabled ? 'rounded-none' : 'rounded-2xl',
           'transition-opacity duration-250 ease-in-out',
         ]"
       >
-        <ResourceStatusIsland />
+        <ResourceStatusIsland v-if="!immersiveStageEnabled" />
         <WidgetStage
           ref="widgetStageRef"
           v-model:state="componentStateStage"
@@ -414,11 +448,12 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
     leave-from-class="opacity-100"
     leave-to-class="opacity-50"
   >
-    <div v-if="isAroundWindowBorderFor250Ms && !isLoading" class="pointer-events-none absolute left-0 top-0 z-999 h-full w-full">
+    <div v-if="isAroundWindowBorderFor250Ms && !isLoading && !immersiveStageEnabled" class="pointer-events-none absolute left-0 top-0 z-999 h-full w-full">
       <div
         :class="[
           'b-primary/50',
-          'h-full w-full animate-flash animate-duration-3s animate-count-infinite b-4 rounded-2xl',
+          'h-full w-full animate-flash animate-duration-3s animate-count-infinite b-4',
+          immersiveStageEnabled ? 'rounded-none' : 'rounded-2xl',
         ]"
       />
     </div>
@@ -438,7 +473,7 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
 .wall {
   --at-apply: text-primary-300;
 
-  --wall-width: 8px;
+  --wall-width: 4px;
   animation: wall-move 1s linear infinite;
   background-image: repeating-linear-gradient(
     45deg,

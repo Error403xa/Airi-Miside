@@ -2,7 +2,10 @@
 import type { ChatHistoryItem } from '@proj-airi/stage-ui/types/chat'
 import type { ChatProvider } from '@xsai-ext/providers/utils'
 
+import AutoGLMControls from '@proj-airi/stage-layouts/components/Widgets/AutoGLMControls'
+
 import { ChatHistory } from '@proj-airi/stage-ui/components'
+import { useAutoGLMStore } from '@proj-airi/stage-ui/stores/autoglm'
 import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
 import { useChatMaintenanceStore } from '@proj-airi/stage-ui/stores/chat/maintenance'
 import { useChatSessionStore } from '@proj-airi/stage-ui/stores/chat/session-store'
@@ -29,6 +32,7 @@ const { streamingMessage } = storeToRefs(chatStream)
 const { sending } = storeToRefs(chatOrchestrator)
 const { t } = useI18n()
 const providersStore = useProvidersStore()
+const autoGLM = useAutoGLMStore()
 const { activeModel, activeProvider } = storeToRefs(useConsciousnessStore())
 const isComposing = ref(false)
 
@@ -49,6 +53,12 @@ async function handleSend() {
   attachments.value = []
 
   try {
+    if (autoGLM.shouldHandleChat && !attachmentsToSend.length) {
+      await ingest(textToSend, {})
+      attachmentsToSend.forEach(att => URL.revokeObjectURL(att.url))
+      return
+    }
+
     const providerConfig = providersStore.getProviderConfig(activeProvider.value)
     await ingest(textToSend, {
       model: activeModel.value,
@@ -67,7 +77,6 @@ async function handleSend() {
       ...att,
       url: URL.createObjectURL(new Blob([Uint8Array.from(atob(att.data), c => c.charCodeAt(0))], { type: att.mimeType })),
     }))
-    messages.value.pop()
     messages.value.push({
       role: 'error',
       content: (error as Error).message,
@@ -104,6 +113,9 @@ function removeAttachment(index: number) {
 }
 
 watch([activeProvider, activeModel], async () => {
+  if (autoGLM.shouldHandleChat)
+    return
+
   if (activeProvider.value && activeModel.value) {
     await discoverToolsCompatibility(activeModel.value, await providersStore.getProviderInstance<ChatProvider>(activeProvider.value), [])
   }
@@ -136,6 +148,7 @@ const historyMessages = computed(() => messages.value as unknown as ChatHistoryI
       </div>
     </div>
     <div class="flex items-center justify-end gap-2 py-1">
+      <AutoGLMControls />
       <button
         class="max-h-[10lh] min-h-[1lh]"
         bg="neutral-100 dark:neutral-800"

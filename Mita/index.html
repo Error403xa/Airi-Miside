@@ -1,0 +1,367 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Live2D Demo</title>
+  <style>
+    :root {
+      --panel-bg: rgba(0, 10, 30, 0.45);
+      --panel-border: rgba(255, 255, 255, 0.18);
+      --panel-text: #f2f7ff;
+      --accent: #9bd2ff;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 20% 20%, #1f5fb7, #0b1c3f 55%, #071630 100%);
+      color: var(--panel-text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", Arial, sans-serif;
+    }
+    #hint {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      font-size: 12px;
+      background: var(--panel-bg);
+      padding: 6px 8px;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      z-index: 10;
+      user-select: none;
+      backdrop-filter: blur(6px);
+    }
+    #dialog {
+      position: fixed;
+      left: 0;
+      top: 0;
+      z-index: 12;
+      opacity: 0;
+      transform: translate(-50%, -100%) translateY(-8px);
+      transition: opacity 0.25s ease;
+      pointer-events: none;
+    }
+    #dialog.show {
+      opacity: 1;
+    }
+    #dialog .bubble {
+      position: relative;
+      background: rgba(5, 14, 34, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 10px 12px;
+      max-width: 360px;
+      font-size: 14px;
+      line-height: 1.5;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    #dialog .bubble::after {
+      content: "";
+      position: absolute;
+      left: 24px;
+      bottom: -10px;
+      border-width: 10px 10px 0 10px;
+      border-style: solid;
+      border-color: rgba(5, 14, 34, 0.65) transparent transparent transparent;
+    }
+  </style>
+</head>
+<body>
+  <div id="hint">拖动移动，滚轮缩放</div>
+
+  <div id="dialog" aria-live="polite">
+    <div class="bubble"><span id="dialog-text"></span></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7/dist/pixi.min.js"></script>
+  <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
+
+  <script>
+    (async () => {
+      const app = new PIXI.Application({
+        resizeTo: window,
+        backgroundAlpha: 0,
+        antialias: false,
+        autoDensity: true,
+        resolution: 1,
+      });
+      document.body.appendChild(app.view);
+      app.view.style.touchAction = "none";
+
+      const model = await PIXI.live2d.Live2DModel.from("3.model3.json");
+      app.stage.addChild(model);
+
+      let needsDialogUpdate = true;
+      const markDialogDirty = () => {
+        needsDialogUpdate = true;
+      };
+
+      const fitModel = () => {
+        const scale = Math.min(
+          app.renderer.width / model.width,
+          app.renderer.height / model.height
+        ) * 0.9;
+        model.scale.set(scale);
+        model.anchor.set(0.5, 0.5);
+        model.x = app.renderer.width * 0.5;
+        model.y = app.renderer.height * 0.9;
+        markDialogDirty();
+      };
+      fitModel();
+
+      window.addEventListener("resize", () => {
+        fitModel();
+        markDialogDirty();
+      });
+
+      const dialog = document.getElementById("dialog");
+      const dialogText = document.getElementById("dialog-text");
+      let dialogTimer = null;
+
+      const showDialog = (text, duration = 3200) => {
+        dialogText.textContent = text;
+        dialog.classList.add("show");
+        if (dialogTimer) clearTimeout(dialogTimer);
+        if (duration > 0) {
+          dialogTimer = setTimeout(() => {
+            dialog.classList.remove("show");
+          }, duration);
+        }
+        markDialogDirty();
+        requestAnimationFrame(updateDialogPosition);
+      };
+
+      const modelBox = () => {
+        const width = model.width;
+        const height = model.height;
+        const left = model.x - width * model.anchor.x;
+        const top = model.y - height * model.anchor.y;
+        return { left, top, width, height };
+      };
+
+      const updateDialogPosition = () => {
+        const box = modelBox();
+        const rect = app.view.getBoundingClientRect();
+        const scaleX = rect.width / app.renderer.width;
+        const scaleY = rect.height / app.renderer.height;
+        const centerX = rect.left + (box.left + box.width * 0.5) * scaleX;
+        const topY = rect.top + box.top * scaleY;
+        const safeTop = Math.max(24, topY);
+        dialog.style.left = `${centerX}px`;
+        dialog.style.top = `${safeTop}px`;
+        needsDialogUpdate = false;
+      };
+
+      const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+      const greetings = {
+        morning: [
+          "早上好呀！今天也要元气满满~",
+          "早安！我已经把小星星擦亮啦 ✨",
+          "晨光好软，来一起伸个懒腰吧~",
+          "起床打卡！先给你一个软绵绵的早安抱抱~",
+          "早安早安，今天也要闪闪发光！"
+        ],
+        noon: [
+          "中午好~要好好吃饭呀，不然我会心疼",
+          "午安！记得补充能量，下午才能更有劲~",
+          "午休时间到，眯一会再继续呀",
+          "中午也要微笑哦~我在这陪你",
+          "午安，给你递上一杯咖啡 (≧∇≦)"
+        ],
+        night: [
+          "晚上好~辛苦一天啦，给你捏捏肩",
+          "夜晚来啦，星星说想你了",
+          "晚安前的小时间，想不想听我讲故事？",
+          "晚上好，今天也做得很好呀",
+          "夜色好温柔，我们一起慢慢放松~"
+        ]
+      };
+
+      const touchLines = [
+        "110吗？这里有个变态一直在摸我 (；´Д｀)",
+        "不要在摸我了，我会告诉姐姐过了打你的",
+        "你要干嘛呀",
+        "真...真的是不知羞耻!",
+        "你看到我的小熊了吗？",
+        "记得把小家加入收藏夹哦",
+        "Hentai!",
+        "拿小拳拳锤你胸口！",
+        "呐,快来逗我玩吧",
+        "轻一点啦，我会害羞的 (*/ω＼*)",
+        "再摸我要变成小刺猬了！",
+        "坏蛋坏蛋，不许欺负我啦",
+        "你是不是偷偷喜欢我呀？",
+        "哼，我要生气了哦！",
+        "再这样我就咬你一口 (ง •̀_•́)ง",
+        "想摸也要先说请~",
+        "等、等一下！这里是公共场合呢",
+        "我不是玩具啦~",
+        "别闹啦，我要被你撩坏了",
+        "要不要一起去喝奶茶？",
+        "你刚刚是不是笑了？我看见了~",
+        "别、别盯着看啦，我会脸红的",
+        "我把勇气借给你一点点，好吗？",
+        "你这一下下，好像小猫踩奶~",
+        "要不要给我买一颗糖？",
+        "呼噜呼噜，摸头服务开启~",
+        "我会记住你的名字的~"
+      ];
+
+      const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour >= 5 && hour < 11) return pickRandom(greetings.morning);
+        if (hour >= 11 && hour < 17) return pickRandom(greetings.noon);
+        return pickRandom(greetings.night);
+      };
+
+      showDialog(getGreeting(), 4200);
+
+      let wasHidden = false;
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden) {
+          wasHidden = true;
+          return;
+        }
+        if (wasHidden) {
+          showDialog("哇，你终于回来了", 3600);
+          wasHidden = false;
+        }
+      });
+
+      const toCanvasPoint = (evt) => {
+        const rect = app.view.getBoundingClientRect();
+        return {
+          x: (evt.clientX - rect.left) * (app.renderer.width / rect.width),
+          y: (evt.clientY - rect.top) * (app.renderer.height / rect.height)
+        };
+      };
+
+      const isInsideModel = (point) => {
+        const box = modelBox();
+        return (
+          point.x >= box.left &&
+          point.x <= box.left + box.width &&
+          point.y >= box.top &&
+          point.y <= box.top + box.height
+        );
+      };
+
+      let lastHitCanvas = null;
+      let lastHitBounds = null;
+      let lastHitTime = 0;
+
+      const hitTestPixel = (point) => {
+        if (!isInsideModel(point)) return false;
+        const extract = app.renderer && app.renderer.extract;
+        if (!extract || typeof extract.canvas !== "function") return true;
+        const now = performance.now();
+        if (!lastHitCanvas || now - lastHitTime > 100) {
+          lastHitCanvas = extract.canvas(model);
+          lastHitBounds = model.getBounds(true);
+          lastHitTime = now;
+        }
+        const bounds = lastHitBounds;
+        if (!bounds || bounds.width <= 0 || bounds.height <= 0) return true;
+        const canvas = lastHitCanvas;
+        const x = Math.floor(((point.x - bounds.x) / bounds.width) * canvas.width);
+        const y = Math.floor(((point.y - bounds.y) / bounds.height) * canvas.height);
+        if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return false;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return true;
+        const alpha = ctx.getImageData(x, y, 1, 1).data[3];
+        return alpha > 10;
+      };
+
+      let dragging = false;
+      let dragMoved = false;
+      let dragStart = null;
+      let modelStart = null;
+      let dragTarget = null;
+
+      const updateCursor = (point) => {
+        if (!point) return;
+        if (!isInsideModel(point)) {
+          app.view.style.cursor = "default";
+          return;
+        }
+        app.view.style.cursor = dragging ? "grabbing" : "grab";
+      };
+
+      const handleClick = () => {
+        if (!handleClick.count) handleClick.count = 0;
+        handleClick.count += 1;
+        if (handleClick.count === 1) {
+          showDialog("是...是不小心碰到了吧?", 3000);
+        } else {
+          showDialog(pickRandom(touchLines), 3200);
+        }
+      };
+
+      app.view.addEventListener("pointerdown", (e) => {
+        const point = toCanvasPoint(e);
+        if (!hitTestPixel(point)) return;
+        dragging = true;
+        dragMoved = false;
+        dragStart = { x: point.x, y: point.y };
+        modelStart = { x: model.x, y: model.y };
+        dragTarget = { x: model.x, y: model.y };
+        app.view.style.cursor = "grabbing";
+        app.view.setPointerCapture(e.pointerId);
+      });
+
+      app.view.addEventListener("pointermove", (e) => {
+        const point = toCanvasPoint(e);
+        updateCursor(point);
+        if (!dragging || !dragStart || !modelStart) return;
+        const dx = point.x - dragStart.x;
+        const dy = point.y - dragStart.y;
+        if (Math.hypot(dx, dy) > 6) dragMoved = true;
+        dragTarget = { x: modelStart.x + dx, y: modelStart.y + dy };
+      });
+
+      const endPointer = (e) => {
+        if (!dragging) return;
+        if (!dragMoved) handleClick();
+        dragging = false;
+        dragStart = null;
+        modelStart = null;
+        dragTarget = null;
+        updateCursor(toCanvasPoint(e));
+        try {
+          app.view.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+      };
+
+      app.view.addEventListener("pointerup", endPointer);
+      app.view.addEventListener("pointercancel", endPointer);
+      app.view.addEventListener("pointerleave", () => {
+        app.view.style.cursor = "default";
+      });
+
+      window.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const factor = Math.exp(-e.deltaY * 0.001);
+        const next = Math.max(0.05, Math.min(5, model.scale.x * factor));
+        model.scale.set(next);
+        markDialogDirty();
+      }, { passive: false });
+
+      app.ticker.add(() => {
+        if (dragging && dragTarget) {
+          const ease = 0.75;
+          model.x += (dragTarget.x - model.x) * ease;
+          model.y += (dragTarget.y - model.y) * ease;
+          needsDialogUpdate = true;
+        }
+        if (needsDialogUpdate) updateDialogPosition();
+      });
+    })();
+  </script>
+</body>
+</html>

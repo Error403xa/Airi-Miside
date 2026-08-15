@@ -39,6 +39,11 @@ export const configSchema = z.object({
     model: requiredString('OPENAI_MODEL'),
     reasoningModel: requiredString('OPENAI_REASONING_MODEL'),
   }),
+  debug: z.object({
+    mcp: z.boolean().default(false),
+    server: z.boolean().default(false),
+    viewer: z.boolean().default(false),
+  }),
   bot: z.object({
     username: requiredString('BOT_USERNAME'),
     host: requiredString('BOT_HOSTNAME'),
@@ -54,10 +59,14 @@ export const configSchema = z.object({
     }).optional(),
     password: z.string().optional(),
     version: z.string().trim().min(1, 'BOT_VERSION cannot be empty').optional(),
+    // In-game username of the bot's owner ("主人"). Binds the relayed "主人" role to the real
+    // player so the bot recognizes its master in-world (e.g. does not flee when the master hits it).
+    masterUsername: z.string().trim().min(1).optional(),
   }),
   airi: z.object({
     wsBaseUrl: wsUrlString('AIRI_WS_BASEURL'),
     clientName: requiredString('AIRI_CLIENT_NAME'),
+    token: z.string().optional(),
   }),
 })
 
@@ -81,10 +90,17 @@ const defaultConfig: Omit<Config, 'openai'> = {
     auth: undefined,
     password: '',
     version: '1.20',
+    masterUsername: undefined,
   },
   airi: {
     wsBaseUrl: 'ws://localhost:6121/ws',
     clientName: 'minecraft-bot',
+    token: '',
+  },
+  debug: {
+    mcp: false,
+    server: false,
+    viewer: false,
   },
 }
 
@@ -103,6 +119,11 @@ export function initEnv(): void {
       model: env.OPENAI_MODEL,
       reasoningModel: env.OPENAI_REASONING_MODEL,
     },
+    debug: {
+      mcp: env.ENABLE_MCP_SERVER === 'true',
+      server: env.ENABLE_DEBUG_SERVER === 'true',
+      viewer: env.ENABLE_MINECRAFT_VIEWER === 'true',
+    },
     bot: {
       username: env.BOT_USERNAME || defaultConfig.bot.username,
       host: env.BOT_HOSTNAME || defaultConfig.bot.host,
@@ -110,10 +131,12 @@ export function initEnv(): void {
       auth: env.BOT_AUTH || defaultConfig.bot.auth,
       password: defaultConfig.bot.password,
       version: env.BOT_VERSION || defaultConfig.bot.version,
+      masterUsername: env.BOT_MASTER_USERNAME || defaultConfig.bot.masterUsername,
     },
     airi: {
       wsBaseUrl: env.AIRI_WS_BASEURL ?? defaultConfig.airi.wsBaseUrl,
       clientName: env.AIRI_CLIENT_NAME ?? defaultConfig.airi.clientName,
+      token: env.AIRI_WS_TOKEN || defaultConfig.airi.token,
     },
   })
 
@@ -127,6 +150,7 @@ export function initEnv(): void {
   config.openai = parsedConfig.data.openai
   config.bot = parsedConfig.data.bot
   config.airi = parsedConfig.data.airi
+  config.debug = parsedConfig.data.debug
 
   logger.withFields({ config }).log('Environment variables initialized')
 }
