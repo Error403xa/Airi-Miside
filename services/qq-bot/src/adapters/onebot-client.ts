@@ -1,6 +1,7 @@
 import type { OneBotActionResponse, OneBotEvent, OneBotMessageEvent } from './onebot-types'
 
 import WebSocket from 'ws'
+
 import { useLogg } from '@guiiai/logg'
 
 const log = useLogg('OneBotClient')
@@ -80,6 +81,14 @@ export class OneBotClient {
       const parsed = JSON.parse(data.toString()) as OneBotEvent | OneBotActionResponse
 
       if ('retcode' in parsed) {
+        if (parsed.status !== 'ok' && !parsed.echo) {
+          const details = parsed as OneBotActionResponse & { message?: string, wording?: string }
+          log.error(`OneBot server rejected the connection: retcode=${details.retcode}, ${details.wording || details.message || 'unknown error'}`)
+          if (details.retcode === 1403) {
+            log.error('NapCat access token is invalid. Check ONEBOT_ACCESS_TOKEN and NapCat WebSocket token settings.')
+            this.shouldReconnect = false
+          }
+        }
         const echo = (parsed as OneBotActionResponse).echo
         if (echo && this.pendingActions.has(echo)) {
           const pending = this.pendingActions.get(echo)!
@@ -208,10 +217,16 @@ export class OneBotClient {
       this.reconnectTimeout = undefined
     }
 
-    if (this.ws) {
-      this.ws.removeAllListeners()
-      this.ws.close()
-      this.ws = undefined
+    const ws = this.ws
+    this.ws = undefined
+
+    if (ws) {
+      ws.removeAllListeners()
+      ws.once('error', () => {})
+      if (ws.readyState === WebSocket.OPEN)
+        ws.close()
+      else if (ws.readyState === WebSocket.CONNECTING)
+        ws.terminate()
     }
 
     this.connected = false
@@ -222,10 +237,18 @@ export class OneBotClient {
     return this.connected
   }
 
-  updateConfig(config: Partial<OneBotClientConfig>): void {
-    if (config.url !== undefined)
-      this.config.url = config.url
-    if (config.accessToken !== undefined)
-      this.config.accessToken = config.accessToken
+  updateConfig(config: Partial<OneBotClientConfig>): boolean {
+    const nextConfig: OneBotClientConfig = {
+      ...this.config,
+      ...config,
+    }
+
+    const changed = nextConfig.url !== this.config.url
+      || nextConfig.accessToken !== this.config.accessToken
+
+    if (changed)
+      this.config = nextConfig
+
+    return changed
   }
 }

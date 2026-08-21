@@ -13,6 +13,8 @@
     "@guiiai/logg": "catalog:",
     "@proj-airi/server-sdk": "workspace:*",
     "@proj-airi/server-shared": "workspace:*",
+    "@xsai/generate-text": "catalog:",
+    "@xsai/shared-chat": "catalog:",
     "ws": "catalog:"
   },
   "devDependencies": {

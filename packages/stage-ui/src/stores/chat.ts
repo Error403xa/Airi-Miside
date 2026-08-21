@@ -18,6 +18,11 @@ import {
   makeLive2DExpressionControlSpecial,
   stripLive2DExpressionControls,
 } from '../constants/live2d-expression-controls'
+import {
+  extractMinecraftExpressionControls,
+  makeMinecraftExpressionControlSpecial,
+  stripMinecraftExpressionControls,
+} from '../constants/minecraft-expression-controls'
 import { useAutoGLMStore } from './autoglm'
 import { createDatetimeContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
@@ -186,9 +191,16 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         pendingExpressionControlText = ''
       }
 
-      const expressionControlResult = extractLive2DExpressionControls(textForExtraction)
-      for (const control of expressionControlResult.controls)
+      const live2dControlResult = extractLive2DExpressionControls(textForExtraction)
+      for (const control of live2dControlResult.controls)
         await hooks.emitTokenSpecialHooks(makeLive2DExpressionControlSpecial(control), context)
+
+      // Chained rather than merged: each channel owns its own marker syntax, and
+      // running the Minecraft pass over what Live2D left behind keeps either from
+      // needing to know about the other.
+      const expressionControlResult = extractMinecraftExpressionControls(live2dControlResult.visibleText)
+      for (const pose of expressionControlResult.poses)
+        await hooks.emitTokenSpecialHooks(makeMinecraftExpressionControlSpecial(pose), context)
 
       if (expressionControlResult.visibleText.trim()) {
         buildingMessage.content += expressionControlResult.visibleText
@@ -289,7 +301,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           if (isStaleGeneration())
             return
 
-          const finalCategorization = categorizeResponse(stripLive2DExpressionControls(fullText), activeProvider.value)
+          const finalCategorization = categorizeResponse(stripMinecraftExpressionControls(stripLive2DExpressionControls(fullText)), activeProvider.value)
 
           buildingMessage.categorization = {
             speech: finalCategorization.speech,
@@ -537,9 +549,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         pendingExpressionControlText = ''
       }
 
-      const expressionControlResult = extractLive2DExpressionControls(textForExtraction)
-      for (const control of expressionControlResult.controls)
+      const live2dControlResult = extractLive2DExpressionControls(textForExtraction)
+      for (const control of live2dControlResult.controls)
         await hooks.emitTokenSpecialHooks(makeLive2DExpressionControlSpecial(control), context)
+
+      const expressionControlResult = extractMinecraftExpressionControls(live2dControlResult.visibleText)
+      for (const pose of expressionControlResult.poses)
+        await hooks.emitTokenSpecialHooks(makeMinecraftExpressionControlSpecial(pose), context)
 
       appendAssistantLiteral(expressionControlResult.visibleText)
       if (expressionControlResult.visibleText)
@@ -602,7 +618,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       try {
         const assistantText = typeof buildingMessage.content === 'string'
           ? buildingMessage.content
-          : stripLive2DExpressionControls(typeof fullText === 'string' ? fullText : '')
+          : stripMinecraftExpressionControls(stripLive2DExpressionControls(typeof fullText === 'string' ? fullText : ''))
 
         await hooks.emitStreamEndHooks(streamingMessageContext)
         await hooks.emitAssistantResponseEndHooks(assistantText, streamingMessageContext)

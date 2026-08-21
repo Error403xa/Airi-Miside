@@ -6,6 +6,7 @@ import type { SpeechProviderWithExtraOptions } from '@xsai-ext/providers/utils'
 import type { UnElevenLabsOptions } from 'unspeech'
 
 import type { EmotionPayload } from '../../constants/emotions'
+import type { DisplayModel } from '../../stores/display-models'
 
 import { drizzle } from '@proj-airi/drizzle-duckdb-wasm'
 import { getImportUrlBundles } from '@proj-airi/drizzle-duckdb-wasm/bundles/import-url-browser'
@@ -13,7 +14,7 @@ import { createLive2DLipSync } from '@proj-airi/model-driver-lipsync'
 import { wlipsyncProfile } from '@proj-airi/model-driver-lipsync/shared/wlipsync'
 import { createPlaybackManager, createSpeechPipeline } from '@proj-airi/pipelines-audio'
 import { Live2DScene, useLive2d } from '@proj-airi/stage-ui-live2d'
-import { ThreeScene, useModelStore } from '@proj-airi/stage-ui-three'
+import { MINECRAFT_EMOTIONS, MinecraftScene, ThreeScene, useModelStore } from '@proj-airi/stage-ui-three'
 import { animations } from '@proj-airi/stage-ui-three/assets/vrm'
 import { createQueue } from '@proj-airi/stream-kit'
 import { Button } from '@proj-airi/ui'
@@ -33,6 +34,11 @@ import {
   live2dExpressionControlPrompts,
   parseLive2DExpressionControlSpecial,
 } from '../../constants/live2d-expression-controls'
+import {
+  minecraftExpressionControlPrompt,
+  minecraftExpressionControls,
+  parseMinecraftExpressionControlSpecial,
+} from '../../constants/minecraft-expression-controls'
 import { useAudioContext, useSpeakingStore } from '../../stores/audio'
 import { useChatOrchestratorStore } from '../../stores/chat'
 import { DisplayModelFormat, useDisplayModelsStore } from '../../stores/display-models'
@@ -58,6 +64,7 @@ const db = ref<DuckDBWasmDrizzleDatabase>()
 
 const vrmViewerRef = ref<InstanceType<typeof ThreeScene>>()
 const live2dSceneRef = ref<InstanceType<typeof Live2DScene>>()
+const minecraftSceneRef = ref<InstanceType<typeof MinecraftScene>>()
 const interactiveOverlayRef = ref<HTMLElement>()
 
 const settingsStore = useSettings()
@@ -105,9 +112,48 @@ const { immersiveStageEnabled } = storeToRefs(useStageDisplayStore())
 const fallbackLive2DModelId = 'preset-live2d-2'
 const live2dModelFallbackInProgress = ref(false)
 
-const live2dModels = computed(() => displayModels.value.filter(model =>
-  model.format === DisplayModelFormat.Live2dZip || model.format === DisplayModelFormat.Live2dDirectory,
-))
+/*
+ * Display order for the "switch character" drawer, most-used first: the Mita
+ * family, then every Minecraft skin, then anything the user imported, with the
+ * bundled Hiyori samples parked at the bottom.
+ *
+ * Ranked explicitly rather than by relying on the order of `displayModelsPresets`,
+ * so adding a preset elsewhere cannot silently reshuffle this list.
+ */
+const CHARACTER_ORDER: Record<string, number> = {
+  'preset-live2d-mita': 0,
+  'preset-live2d-xiaomita': 1,
+  'preset-live2d-xiaomita-pro': 2,
+  'preset-live2d-1': 100, // Hiyori (Pro)
+  'preset-live2d-2': 101, // Hiyori (Free)
+}
+
+const CHARACTER_RANK_MINECRAFT = 10
+const CHARACTER_RANK_IMPORTED = 50
+
+function characterRank(model: DisplayModel): number {
+  const pinned = CHARACTER_ORDER[model.id]
+  if (pinned !== undefined)
+    return pinned
+
+  return model.format === DisplayModelFormat.MinecraftSkin
+    ? CHARACTER_RANK_MINECRAFT
+    : CHARACTER_RANK_IMPORTED
+}
+
+// Live2D and Minecraft skins are both fully driven from a chat session, so they
+// share one list; VRM stays out of it because it is selected from the settings
+// pane instead.
+const characterModels = computed(() => displayModels.value
+  .filter(model =>
+    model.format === DisplayModelFormat.Live2dZip
+    || model.format === DisplayModelFormat.Live2dDirectory
+    || model.format === DisplayModelFormat.MinecraftSkin,
+  )
+  // Equal ranks keep their existing relative order, which is what preserves the
+  // alphabetical sort the Minecraft presets are built with.
+  .sort((a, b) => characterRank(a) - characterRank(b)),
+)
 const mitaSelected = computed(() => stageModelSelected.value === 'preset-live2d-mita')
 const xiaoMitaSelected = computed(() => stageModelSelected.value === 'preset-live2d-xiaomita')
 const xiaoMitaProSelected = computed(() => stageModelSelected.value === 'preset-live2d-xiaomita-pro')
@@ -134,6 +180,30 @@ function isExpressionActive(expressionFile: string) {
   return mitaSelected.value
     ? activeExpressions.value.includes(expressionFile)
     : currentExpression.value === expressionFile
+}
+
+/*
+ * The Minecraft rig has no expression files to enumerate — its nine postures are
+ * defined in code — so it gets its own drawer rather than reusing the Live2D one.
+ * Being able to trigger a pose by hand also matters more here: emotions otherwise
+ * only fire when the model emits an emotion token mid-conversation.
+ */
+const hasMinecraftEmoteDrawer = computed(() => stageModelRenderer.value === 'minecraft')
+const minecraftEmotion = ref<string>('neutral')
+
+/*
+ * The drawer and the control-marker prompt list the same nine poses, so both read
+ * from `minecraftExpressionControls` rather than keeping parallel label tables that
+ * could drift apart.
+ */
+function getMinecraftEmotionLabel(emotion: string) {
+  const control = minecraftExpressionControls.find(entry => entry.id === emotion)
+  return control ? `${control.emoji} ${control.label}` : emotion
+}
+
+function selectMinecraftEmotion(emotion: string) {
+  minecraftEmotion.value = emotion
+  minecraftSceneRef.value?.setExpression(emotion)
 }
 const live2dDisableFocusForSelectedModel = computed(() => mitaSelected.value || xiaoMitaLikeSelected.value || live2dDisableFocus.value)
 const live2dDisableIdleEyeFocus = computed(() => mitaSelected.value)
@@ -238,6 +308,13 @@ const emotionsQueue = createQueue<EmotionPayload>({
       else if (stageModelRenderer.value === 'live2d') {
         currentMotion.value = { group: EMOTION_EmotionMotionName_value[ctx.data.name] }
       }
+      else if (stageModelRenderer.value === 'minecraft') {
+        // The Minecraft rig performs emotion as posture, and its profile table is
+        // keyed by the Emotion enum values directly, so no mapping table is
+        // needed here — unlike the VRM path, nothing gets dropped on the way.
+        minecraftEmotion.value = ctx.data.name
+        minecraftSceneRef.value?.setExpression(ctx.data.name, ctx.data.intensity)
+      }
     },
   ],
 })
@@ -269,6 +346,23 @@ function resolveExpressionFile(expressionId: string, fallbackModel: 'mita' | 'xi
     expression.expressionFile === mappedExpressionFile
     || expression.expressionName === expressionId,
   )?.expressionFile
+}
+
+/*
+ * Apply a Minecraft pose marker. Returns true when the special belonged to this
+ * channel, so the caller can stop before forwarding it to the speech pipeline.
+ */
+function applyMinecraftExpressionControl(special: string) {
+  const poseId = parseMinecraftExpressionControlSpecial(special)
+  if (!poseId)
+    return false
+
+  // Swallow the marker even when another renderer is active: it was addressed to
+  // this channel, and letting it fall through would read it out loud.
+  if (hasMinecraftEmoteDrawer.value)
+    selectMinecraftEmotion(poseId)
+
+  return true
 }
 
 function applyLive2DExpressionControl(special: string) {
@@ -567,11 +661,15 @@ chatHookCleanups.push(onBeforeMessageComposed(async () => {
 }))
 
 chatHookCleanups.push(onAfterMessageComposed(async (_message, context) => {
-  const prompt = mitaSelected.value
-    ? live2dExpressionControlPrompts.mita
-    : xiaoMitaProSelected.value
-      ? live2dExpressionControlPrompts['xiaomita-pro']
-      : ''
+  // Every Minecraft skin shares the same nine code-defined poses, so the marker
+  // prompt is keyed off the renderer rather than off a particular model id.
+  const prompt = stageModelRenderer.value === 'minecraft'
+    ? minecraftExpressionControlPrompt
+    : mitaSelected.value
+      ? live2dExpressionControlPrompts.mita
+      : xiaoMitaProSelected.value
+        ? live2dExpressionControlPrompts['xiaomita-pro']
+        : ''
 
   if (!prompt)
     return
@@ -593,6 +691,9 @@ chatHookCleanups.push(onTokenLiteral(async (literal) => {
 chatHookCleanups.push(onTokenSpecial(async (special) => {
   // console.debug('Stage received special token:', special)
   if (applyLive2DExpressionControl(special))
+    return
+
+  if (applyMinecraftExpressionControl(special))
     return
 
   currentChatIntent?.writeSpecial(special)
@@ -672,9 +773,15 @@ async function selectDisplayModel(modelId: string) {
   stageModelSelected.value = modelId
   await settingsStore.updateStageModel()
 
+  // A freshly built Minecraft rig starts from neutral, so the drawer highlight
+  // has to follow it back or it would point at the previous model's pose.
+  minecraftEmotion.value = 'neutral'
+
   if (model.format === DisplayModelFormat.VRM)
     vrmStore.shouldUpdateView()
-  else
+  else if (model.format !== DisplayModelFormat.MinecraftSkin)
+    // The Minecraft renderer keeps its own camera and needs no view refresh, and
+    // poking the Live2D store here would fire a reload for a model it never owned.
     live2dStore.shouldUpdateView()
 
   showModelDrawer.value = false
@@ -755,7 +862,7 @@ defineExpose({
       ref="interactiveOverlayRef"
       :class="[
         'pointer-events-auto absolute left-0 top-1/2 z-20 flex -translate-y-1/2 flex-col items-start gap-2',
-        'pl-1',
+        'max-h-[calc(100vh-2rem)] pl-1',
       ]"
     >
       <Button
@@ -773,7 +880,7 @@ defineExpose({
         </div>
       </Button>
       <Button
-        v-if="hasExpressionDrawer"
+        v-if="hasExpressionDrawer || hasMinecraftEmoteDrawer"
         variant="secondary"
         size="sm"
         :class="[
@@ -787,67 +894,102 @@ defineExpose({
           <span>表情</span>
         </div>
       </Button>
-      <div
-        v-if="showModelDrawer"
-        :class="[
-          'ml-0.5 max-h-[70vh] w-52 overflow-y-auto rounded-2xl border border-white/30 bg-white/85 p-3 shadow-xl backdrop-blur-md',
-          'dark:border-white/10 dark:bg-neutral-950/88',
-        ]"
-      >
-        <div :class="['mb-2 text-xs font-medium tracking-wide text-neutral-500 dark:text-neutral-400']">
-          切换人物
+      <!--
+        One scroll region for all the drawers rather than one per drawer. Each used
+        to cap itself at 70vh, so opening two stacked to 140vh and spilled off both
+        ends of a vertically centred column — and because the overflowing element was
+        the container rather than any drawer, there was nothing for the wheel to
+        scroll. The buttons stay outside it so they cannot scroll out of reach.
+        `min-h-0` is what lets a flex child shrink below its content height.
+      -->
+      <div :class="['min-h-0 flex flex-1 flex-col items-start gap-2 overflow-y-auto overscroll-contain pr-1']">
+        <div
+          v-if="showModelDrawer"
+          :class="[
+            'ml-0.5 w-52 shrink-0 rounded-2xl border border-white/30 bg-white/85 p-3 shadow-xl backdrop-blur-md',
+            'dark:border-white/10 dark:bg-neutral-950/88',
+          ]"
+        >
+          <div :class="['mb-2 text-xs font-medium tracking-wide text-neutral-500 dark:text-neutral-400']">
+            切换人物
+          </div>
+          <button
+            v-for="model in characterModels"
+            :key="model.id"
+            type="button"
+            :class="[
+              'mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition-colors last:mb-0',
+              stageModelSelected === model.id
+                ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-400/15 dark:text-primary-200'
+                : 'bg-black/4 text-neutral-700 hover:bg-black/8 dark:bg-white/6 dark:text-neutral-200 dark:hover:bg-white/10',
+            ]"
+            @click="selectDisplayModel(model.id)"
+          >
+            {{ model.name }}
+          </button>
         </div>
-        <button
-          v-for="model in live2dModels"
-          :key="model.id"
-          type="button"
+        <div
+          v-if="showExpressionDrawer && hasExpressionDrawer"
           :class="[
-            'mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition-colors last:mb-0',
-            stageModelSelected === model.id
-              ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-400/15 dark:text-primary-200'
-              : 'bg-black/4 text-neutral-700 hover:bg-black/8 dark:bg-white/6 dark:text-neutral-200 dark:hover:bg-white/10',
+            'ml-0.5 w-52 shrink-0 rounded-2xl border border-white/30 bg-white/85 p-3 shadow-xl backdrop-blur-md',
+            'dark:border-white/10 dark:bg-neutral-950/88',
           ]"
-          @click="selectDisplayModel(model.id)"
         >
-          {{ model.name }}
-        </button>
-      </div>
-      <div
-        v-if="showExpressionDrawer && hasExpressionDrawer"
-        :class="[
-          'ml-0.5 max-h-[70vh] w-52 overflow-y-auto rounded-2xl border border-white/30 bg-white/85 p-3 shadow-xl backdrop-blur-md',
-          'dark:border-white/10 dark:bg-neutral-950/88',
-        ]"
-      >
-        <div :class="['mb-2 text-xs font-medium tracking-wide text-neutral-500 dark:text-neutral-400']">
-          {{ expressionDrawerTitle }}
+          <div :class="['mb-2 text-xs font-medium tracking-wide text-neutral-500 dark:text-neutral-400']">
+            {{ expressionDrawerTitle }}
+          </div>
+          <button
+            type="button"
+            :class="[
+              'mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition-colors',
+              !activeExpressions.length && !currentExpression
+                ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-400/15 dark:text-primary-200'
+                : 'bg-black/4 text-neutral-700 hover:bg-black/8 dark:bg-white/6 dark:text-neutral-200 dark:hover:bg-white/10',
+            ]"
+            @click="clearExpression"
+          >
+            默认
+          </button>
+          <button
+            v-for="expression in availableExpressions"
+            :key="expression.expressionFile"
+            type="button"
+            :class="[
+              'mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition-colors last:mb-0',
+              isExpressionActive(expression.expressionFile)
+                ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-400/15 dark:text-primary-200'
+                : 'bg-black/4 text-neutral-700 hover:bg-black/8 dark:bg-white/6 dark:text-neutral-200 dark:hover:bg-white/10',
+            ]"
+            @click="selectExpression(expression.expressionFile)"
+          >
+            {{ getExpressionDisplayName(expression.expressionName) }}
+          </button>
         </div>
-        <button
-          type="button"
+        <div
+          v-if="showExpressionDrawer && hasMinecraftEmoteDrawer"
           :class="[
-            'mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition-colors',
-            !activeExpressions.length && !currentExpression
-              ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-400/15 dark:text-primary-200'
-              : 'bg-black/4 text-neutral-700 hover:bg-black/8 dark:bg-white/6 dark:text-neutral-200 dark:hover:bg-white/10',
+            'ml-0.5 w-52 shrink-0 rounded-2xl border border-white/30 bg-white/85 p-3 shadow-xl backdrop-blur-md',
+            'dark:border-white/10 dark:bg-neutral-950/88',
           ]"
-          @click="clearExpression"
         >
-          默认
-        </button>
-        <button
-          v-for="expression in availableExpressions"
-          :key="expression.expressionFile"
-          type="button"
-          :class="[
-            'mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition-colors last:mb-0',
-            isExpressionActive(expression.expressionFile)
-              ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-400/15 dark:text-primary-200'
-              : 'bg-black/4 text-neutral-700 hover:bg-black/8 dark:bg-white/6 dark:text-neutral-200 dark:hover:bg-white/10',
-          ]"
-          @click="selectExpression(expression.expressionFile)"
-        >
-          {{ getExpressionDisplayName(expression.expressionName) }}
-        </button>
+          <div :class="['mb-2 text-xs font-medium tracking-wide text-neutral-500 dark:text-neutral-400']">
+            动作表情
+          </div>
+          <button
+            v-for="emotion in MINECRAFT_EMOTIONS"
+            :key="emotion"
+            type="button"
+            :class="[
+              'mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition-colors last:mb-0',
+              minecraftEmotion === emotion
+                ? 'bg-primary-500/15 text-primary-700 dark:bg-primary-400/15 dark:text-primary-200'
+                : 'bg-black/4 text-neutral-700 hover:bg-black/8 dark:bg-white/6 dark:text-neutral-200 dark:hover:bg-white/10',
+            ]"
+            @click="selectMinecraftEmotion(emotion)"
+          >
+            {{ getMinecraftEmotionLabel(emotion) }}
+          </button>
+        </div>
       </div>
     </div>
     <div h-full w-full>
@@ -878,6 +1020,23 @@ defineExpose({
         :live2d-shadow-enabled="live2dShadowEnabled"
         :live2d-max-fps="live2dMaxFps"
         @error="handleLive2DModelError"
+      />
+      <!--
+        `focus-at` is deliberately not bound here. Cursor tracking made the box
+        character look tethered to the mouse instead of alive; the idle scan in
+        `useMinecraftEmote` handles looking around now. Pass `:focus-at="focusAt"`
+        together with `gaze-tracking` to bring it back.
+      -->
+      <MinecraftScene
+        v-if="stageModelRenderer === 'minecraft' && showStage"
+        ref="minecraftSceneRef"
+        v-model:state="componentState"
+        min-w="50% <lg:full" min-h="100 sm:100"
+        h-full w-full flex-1
+        :model-src="stageModelSelectedUrl"
+        :mouth-open-size="mouthOpenSize"
+        :paused="paused"
+        @error="console.error"
       />
       <ThreeScene
         v-if="stageModelRenderer === 'vrm' && showStage"

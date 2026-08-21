@@ -15,6 +15,7 @@ if (mode !== 'dev' && mode !== 'start')
 const messagingCommands = [
   ['-F', '@proj-airi/discord-bot', 'start'],
   ['-F', '@proj-airi/telegram-bot', 'start'],
+  ['-F', '@proj-airi/qq-bot', 'start'],
   mode === 'dev'
     ? ['-F', '@proj-airi/stage-web', 'exec', 'vite', '--host', '127.0.0.1', '--configLoader', 'runner']
     : ['-F', '@proj-airi/stage-web', 'exec', 'tsx', 'scripts/serve-with-autoglm.ts'],
@@ -79,7 +80,9 @@ function isServerRuntimeCommand(args: readonly string[]) {
 }
 
 function isMessagingBotCommand(args: readonly string[]) {
-  return args.includes('@proj-airi/discord-bot') || args.includes('@proj-airi/telegram-bot')
+  return args.includes('@proj-airi/discord-bot')
+    || args.includes('@proj-airi/telegram-bot')
+    || args.includes('@proj-airi/qq-bot')
 }
 
 function terminateChild(child: ChildProcess) {

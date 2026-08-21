@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { OnboardingDialog, ToasterRoot } from '@proj-airi/stage-ui/components'
+import { BirthdayCakeRain, OnboardingDialog, ToasterRoot } from '@proj-airi/stage-ui/components'
 import { useSharedAnalyticsStore } from '@proj-airi/stage-ui/stores/analytics'
 import { useAutoGLMStore } from '@proj-airi/stage-ui/stores/autoglm'
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
@@ -141,6 +141,8 @@ function handleSetupSkipped() {
   />
 
   <PerformanceOverlay />
+
+  <BirthdayCakeRain />
 </template>
 
 <style>

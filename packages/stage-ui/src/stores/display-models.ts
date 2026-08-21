@@ -17,6 +17,7 @@ export enum DisplayModelFormat {
   PMXZip = 'pmx-zip',
   PMXDirectory = 'pmx-directory',
   PMD = 'pmd',
+  MinecraftSkin = 'minecraft-skin',
 }
 
 export type DisplayModel
@@ -36,6 +37,39 @@ const presetVrmAvatarAUrl = new URL('../assets/vrm/models/AvatarSample-A/AvatarS
 const presetVrmAvatarAPreview = new URL('../assets/vrm/models/AvatarSample-A/preview.png', import.meta.url).href
 const presetVrmAvatarBUrl = new URL('../assets/vrm/models/AvatarSample-B/AvatarSample_B.vrm', import.meta.url).href
 const presetVrmAvatarBPreview = new URL('../assets/vrm/models/AvatarSample-B/preview.png', import.meta.url).href
+
+/*
+ * Minecraft skins are enumerated from disk rather than listed by hand, so
+ * dropping a new PNG into `src/assets/minecraft-skins/` is enough to make it
+ * appear in the character list. The display name is the bare filename, which is
+ * how these skins are identified everywhere else.
+ *
+ * NOTICE: `importedAt` is derived from a fixed epoch plus the sorted index rather
+ * than `Date.now()`. These are presets, not user imports, so the value has to be
+ * stable across reloads or the list would reshuffle on every start.
+ */
+const minecraftSkinModules = import.meta.glob<string>('../assets/minecraft-skins/*.png', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
+
+const minecraftSkinPresetsEpoch = 1733113886900
+
+const minecraftSkinPresets: DisplayModel[] = Object.entries(minecraftSkinModules)
+  .map(([path, url]) => ({ name: path.split('/').pop()!.replace(/\.png$/i, ''), url }))
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .map(({ name, url }, index) => ({
+    id: `preset-minecraft-${name}`,
+    format: DisplayModelFormat.MinecraftSkin,
+    type: 'url' as const,
+    url,
+    name,
+    // The atlas itself stands in as the thumbnail. The character drawer only
+    // renders names, so this is only a fallback for pickers that show an image.
+    previewImage: url,
+    importedAt: minecraftSkinPresetsEpoch + index,
+  }))
 
 export interface DisplayModelFile {
   id: string
@@ -65,6 +99,7 @@ const displayModelsPresets: DisplayModel[] = [
   { id: 'preset-live2d-xiaomita-pro', format: DisplayModelFormat.Live2dDirectory, type: 'url', url: presetLive2dXiaoMitaProUrl, name: '小米塔(pro)', previewImage: presetLive2dXiaoMitaProPreview, importedAt: 1733113886843 },
   { id: 'preset-vrm-1', format: DisplayModelFormat.VRM, type: 'url', url: presetVrmAvatarAUrl, name: 'AvatarSample_A', previewImage: presetVrmAvatarAPreview, importedAt: 1733113886840 },
   { id: 'preset-vrm-2', format: DisplayModelFormat.VRM, type: 'url', url: presetVrmAvatarBUrl, name: 'AvatarSample_B', previewImage: presetVrmAvatarBPreview, importedAt: 1733113886840 },
+  ...minecraftSkinPresets,
 ]
 
 export const useDisplayModelsStore = defineStore('display-models', () => {

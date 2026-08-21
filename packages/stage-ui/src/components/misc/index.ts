@@ -1,4 +1,5 @@
 export { default as Alert } from './alert.vue'
+export { default as BirthdayCakeRain } from './birthday-cake-rain.vue'
 export { default as ErrorContainer } from './error-container.vue'
 export * from './steppers'
 export { default as WIP } from './wip.vue'

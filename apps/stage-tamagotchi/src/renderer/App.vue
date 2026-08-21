@@ -2,7 +2,7 @@
 import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
 import { themeColorFromValue, useThemeColor } from '@proj-airi/stage-layouts/composables/theme-color'
-import { ToasterRoot } from '@proj-airi/stage-ui/components'
+import { BirthdayCakeRain, ToasterRoot } from '@proj-airi/stage-ui/components'
 import { useSharedAnalyticsStore } from '@proj-airi/stage-ui/stores/analytics'
 import { useAutoGLMStore } from '@proj-airi/stage-ui/stores/autoglm'
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
@@ -172,6 +172,7 @@ onUnmounted(() => {
   </ToasterRoot>
   <ResizeHandler />
   <RouterView />
+  <BirthdayCakeRain />
 </template>
 
 <style>

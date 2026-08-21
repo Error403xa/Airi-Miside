@@ -14,7 +14,7 @@ export const useSettingsStageModel = defineStore('settings-stage-model', () => {
   const stageModelSelected = useLocalStorageManualReset<string>('settings/stage/model', defaultStageModelSelected)
   const stageModelSelectedDisplayModel = refManualReset<DisplayModel | undefined>(undefined)
   const stageModelSelectedUrl = refManualReset<string | undefined>(undefined)
-  const stageModelRenderer = refManualReset<'live2d' | 'vrm' | 'disabled' | undefined>(undefined)
+  const stageModelRenderer = refManualReset<'live2d' | 'vrm' | 'minecraft' | 'disabled' | undefined>(undefined)
 
   const stageViewControlsEnabled = refManualReset<boolean>(false)
 
@@ -46,6 +46,9 @@ export const useSettingsStageModel = defineStore('settings-stage-model', () => {
         break
       case DisplayModelFormat.VRM:
         stageModelRenderer.value = 'vrm'
+        break
+      case DisplayModelFormat.MinecraftSkin:
+        stageModelRenderer.value = 'minecraft'
         break
       default:
         stageModelRenderer.value = 'disabled'

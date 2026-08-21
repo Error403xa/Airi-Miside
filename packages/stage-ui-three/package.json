@@ -16,6 +16,7 @@
   },
   "exports": {
     "./assets/vrm": "./src/assets/vrm/index.ts",
+    "./composables/minecraft": "./src/composables/minecraft/index.ts",
     "./composables/vrm": "./src/composables/vrm/index.ts",
     "./utils/vrm-preview": "./src/utils/vrm-preview.ts",
     ".": "./src/index.ts"

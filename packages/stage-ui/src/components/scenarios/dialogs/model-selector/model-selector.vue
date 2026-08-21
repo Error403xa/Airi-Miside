@@ -56,6 +56,7 @@ const mapFormatRenderer: Record<DisplayModelFormat, string> = {
   [DisplayModelFormat.PMXDirectory]: 'MMD',
   [DisplayModelFormat.PMXZip]: 'MMD',
   [DisplayModelFormat.PMD]: 'MMD',
+  [DisplayModelFormat.MinecraftSkin]: 'Minecraft',
 }
 
 const live2dDialog = useFileDialog({ accept: '.zip', multiple: false, reset: true })

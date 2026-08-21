@@ -1,16 +1,23 @@
 import type { InputAttachment, MetadataEventSource, ModulePhase, QQ } from '@proj-airi/server-shared/types'
+
 import type { OneBotGroupMessageEvent, OneBotMessageEvent } from './onebot-types'
 
+import { Buffer } from 'node:buffer'
 import { env } from 'node:process'
 
 import { useLogg } from '@guiiai/logg'
 import { Client as AiriClient } from '@proj-airi/server-sdk'
 import { ContextUpdateStrategy } from '@proj-airi/server-shared/types'
 
+import { QQLLMWorker, readQQLLMConfig } from '../llm/qq-llm-worker'
 import { OneBotClient } from './onebot-client'
 
 const log = useLogg('QQAdapter')
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024
+
+export function normalizeQQReply(content: string): string {
+  return content.trim()
+}
 
 const QQ_IDENTITY: MetadataEventSource = {
   kind: 'plugin',
@@ -32,8 +39,8 @@ interface QQConfig {
 }
 
 interface QQOutputData {
-  message?: { content?: string | Array<string | { text: string }> }
-  qq?: QQ
+  'message'?: { content?: string | Array<string | { text: string }> }
+  'qq'?: QQ
   'gen-ai:chat'?: { input?: { data?: { qq?: QQ } } }
 }
 
@@ -95,36 +102,44 @@ async function downloadAsAttachment(url: string): Promise<InputAttachment | unde
 }
 
 export class QQAdapter {
-  private airiClient: AiriClient
+  private airiClient?: AiriClient
   private connections = new Map<number | undefined, OneBotClient>()
   private selfIdToIndex = new Map<number, number | undefined>()
   private reconnectingIndices = new Set<number | undefined>()
   private defaultUrl: string
   private defaultAccessToken?: string
+  private readonly headlessWorker: QQLLMWorker
 
   constructor(config: QQAdapterConfig) {
     this.defaultUrl = config.onebotUrl || env.ONEBOT_WS_URL || ''
     this.defaultAccessToken = config.onebotAccessToken || env.ONEBOT_ACCESS_TOKEN || undefined
+    this.headlessWorker = new QQLLMWorker(readQQLLMConfig(env))
 
-    this.airiClient = new AiriClient({
-      name: 'qq',
-      identity: QQ_IDENTITY,
-      possibleEvents: [
-        'input:text',
-        'module:configure',
-        'module:status',
-        'output:gen-ai:chat:message',
-        'output:gen-ai:speech:audio',
-      ],
-      token: config.airiToken,
-      url: config.airiUrl,
-    })
+    if (!this.headlessWorker.isEnabled()) {
+      this.airiClient = new AiriClient({
+        name: 'qq',
+        identity: QQ_IDENTITY,
+        possibleEvents: [
+          'input:text',
+          'module:configure',
+          'module:status',
+          'output:gen-ai:chat:message',
+          'output:gen-ai:speech:audio',
+        ],
+        token: config.airiToken,
+        url: config.airiUrl,
+      })
 
-    this.setupEventHandlers()
+      this.setupEventHandlers()
+    }
   }
 
   private setupEventHandlers(): void {
-    this.airiClient.onEvent('module:configure', async (event) => {
+    const airiClient = this.airiClient
+    if (!airiClient)
+      return
+
+    airiClient.onEvent('module:configure', async (event) => {
       const index = (event.data as { index?: number }).index as number | undefined
 
       if (this.reconnectingIndices.has(index))
@@ -149,7 +164,7 @@ export class QQAdapter {
       }
     })
 
-    this.airiClient.onEvent('output:gen-ai:chat:message', async (event) => {
+    airiClient.onEvent('output:gen-ai:chat:message', async (event) => {
       const data = event.data as QQOutputData
       const content = this.extractAssistantText(data.message)
       const qqContext = data.qq ?? data['gen-ai:chat']?.input?.data?.qq
@@ -158,7 +173,7 @@ export class QQAdapter {
         await this.sendResponseToQQ(qqContext, content)
     })
 
-    this.airiClient.onEvent('output:gen-ai:speech:audio', async (event) => {
+    airiClient.onEvent('output:gen-ai:speech:audio', async (event) => {
       const data = event.data as QQOutputData & { audioBase64?: string, mimeType?: string }
       const qqContext = data.qq ?? data['gen-ai:chat']?.input?.data?.qq
 
@@ -174,8 +189,8 @@ export class QQAdapter {
       return
     }
 
-    const wsUrl = config.wsUrl || (index === undefined ? this.defaultUrl : '')
-    const accessToken = config.accessToken || (index === undefined ? this.defaultAccessToken : undefined)
+    const wsUrl = config.wsUrl ?? (index === undefined ? this.defaultUrl : '')
+    const accessToken = config.accessToken ?? (index === undefined ? this.defaultAccessToken : undefined)
 
     if (!wsUrl) {
       this.destroyConnection(index)
@@ -184,7 +199,13 @@ export class QQAdapter {
     }
 
     const existing = this.connections.get(index)
-    const needsReconnect = !existing || !existing.isConnected()
+    const configChanged = existing?.updateConfig({ url: wsUrl, accessToken }) ?? false
+    const needsReconnect = !existing || !existing.isConnected() || configChanged
+
+    if (existing && !needsReconnect) {
+      this.emitReady(index)
+      return
+    }
 
     if (needsReconnect) {
       this.destroyConnection(index)
@@ -217,15 +238,23 @@ export class QQAdapter {
         if (event.message_type === 'group')
           qqContext.groupId = (event as OneBotGroupMessageEvent).group_id
 
-        this.sendTextToAiri(text || 'Please describe the attached image.', event.raw_message, qqContext, attachments)
+        const inputText = text || 'Please describe the attached image.'
+        if (this.headlessWorker.isEnabled()) {
+          try {
+            await this.headlessWorker.enqueue(qqContext, inputText, attachments, answer => this.sendResponseToQQ(qqContext, answer))
+          }
+          catch (error) {
+            log.withError(error as Error).error('Headless QQ LLM generation failed')
+            await this.sendResponseToQQ(qqContext, '回复生成失败，请稍后再试。')
+          }
+        }
+        else {
+          this.sendTextToAiri(inputText, event.raw_message, qqContext, attachments)
+        }
       })
 
       this.emitStatus('preparing', 'Connecting to NapCat...', { state: 'connecting' }, index)
       await client.connect()
-      this.emitReady(index)
-    }
-    else {
-      existing.updateConfig({ url: wsUrl, accessToken })
       this.emitReady(index)
     }
   }
@@ -265,6 +294,11 @@ export class QQAdapter {
   }
 
   private sendTextToAiri(content: string, rawContent: string, qqContext: QQ, attachments?: InputAttachment[]): void {
+    if (!this.airiClient) {
+      log.warn('AIRI event client is unavailable in headless mode')
+      return
+    }
+
     const displayName = qqContext.card || qqContext.nickname
     let contextPrefix: string
     let targetSessionId: string
@@ -327,7 +361,11 @@ export class QQAdapter {
     }
 
     try {
-      const chunks = this.splitMessage(content)
+      const normalizedContent = normalizeQQReply(content)
+      if (!normalizedContent)
+        return
+
+      const chunks = this.splitMessage(normalizedContent)
 
       for (const chunk of chunks) {
         if (qqContext.messageType === 'group' && qqContext.groupId) {
@@ -395,6 +433,8 @@ export class QQAdapter {
 
   async start(): Promise<void> {
     log.log('Starting QQ adapter (hub mode)...')
+    if (this.headlessWorker.isEnabled())
+      await this.headlessWorker.start()
 
     if (this.defaultUrl) {
       try {
@@ -420,7 +460,7 @@ export class QQAdapter {
       for (const [index] of this.connections)
         this.destroyConnection(index)
       this.selfIdToIndex.clear()
-      this.airiClient.close()
+      this.airiClient?.close()
       log.log('QQ adapter stopped')
     }
     catch (error) {
@@ -429,7 +469,7 @@ export class QQAdapter {
   }
 
   private emitStatus(phase: ModulePhase, reason?: string, details?: Record<string, unknown>, index?: number): void {
-    this.airiClient.send({
+    this.airiClient?.send({
       type: 'module:status',
       data: { identity: QQ_IDENTITY, phase, reason, details, index },
     })

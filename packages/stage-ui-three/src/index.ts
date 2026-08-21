@@ -1,5 +1,7 @@
+export { default as MinecraftScene } from './components/MinecraftScene.vue'
 export { default as ThreeScene } from './components/ThreeScene.vue'
 export * from './composables/hit-test'
+export * from './composables/minecraft'
 export * from './composables/render-target'
 export { useModelStore } from './stores/model-store'
 export * from './utils/vrm-preview'
